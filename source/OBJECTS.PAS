@@ -1,29 +1,30 @@
-{**************************************
- *  O b j e c t G E M   Version 1.20  *
- *  Copyright 1992-94 by Thomas Much  *
- **************************************
- *        Unit  O B J E C T S         *
- **************************************
- *    Softdesign Computer Software    *
- *    Thomas Much, Gerwigstraûe 46,   *
- *  76131 Karlsruhe, (0721) 62 28 41  *
- *         Thomas Much @ KA2          *
- *  UK48@ibm3090.rz.uni-karlsruhe.de  *
- **************************************
- *    erstellt am:        13.07.1992  *
- *    letztes Update am:  29.05.1994  *
- **************************************}
+{****************************************
+ *   O b j e c t G E M   Version 1.50   *
+ *   Copyright 1992-98 by Thomas Much   *
+ ****************************************
+ *         Unit  O B J E C T S          *
+ ****************************************
+ *     Thomas Much, Gerwigstraûe 46,    *
+ * 76131 Karlsruhe, Fax (0721) 62 28 21 *
+ *          Thomas Much @ KA2           *
+ *  Thomas.Much@stud.uni-karlsruhe.de   *
+ *  www.uni-karlsruhe.de/~Thomas.Much   *
+ ****************************************
+ *      erstellt am:        13.07.1992  *
+ *      letztes Update am:  10.03.1996  *
+ ****************************************}
 
 {
   WICHTIGE ANMERKUNGEN ZUM QUELLTEXT:
 
-  ObjectGEM wird mit dem _vollstÑndigen_ Quelltext ausgeliefert, d.h.
-  jeder kann sich die Unit selbst compilieren, womit die extrem lÑstigen
-  KompatibilitÑtsprobleme mit den PP-Releases beseitigt sind.
-  ObjectGEM ist und bleibt aber trotzdem SHAREWARE, d.h. wer die Biblio-
-  thek regelmÑûig benutzt, muû sich REGISTRIEREN lassen. DafÅr gibt es
-  die neueste Version und - gegen einen geringen Aufpreis - auch ein
-  gedrucktes Handbuch.
+	ObjectGEM ist Freeware, d.h. jeder darf die Units verwenden, ohne
+	fÅr die damit entwickelten Programme Lizenzen o.Ñ. zahlen zu mÅssen,
+	so lange alle Dateien _zusammen_ und _unverÑndert_ (!) weitergegeben
+	werden.
+	
+	Ich freue mich natÅrlich trotzdem Åber kleine Aufmerksamkeiten wie
+	Belegexemplare, originelle T-Shirts (L oder XL) sowie grÅnen Tee
+	aus Japan :-)
 
   WICHTIG: Wer den Quelltext verÑndert und dann Probleme beim Compilieren,
   AusfÅhren o.Ñ. hat, kann nicht damit rechnen, daû ich den Fehler suche;
@@ -53,11 +54,7 @@
 }
 
 
-{$IFDEF DEBUG}
-	{$B+,D+,G-,I-,L+,N-,P-,Q+,R+,S+,T-,V-,X+,Z-}
-{$ELSE}
-	{$B+,D-,G-,I-,L-,N-,P-,Q-,R-,S-,T-,V-,X+,Z-}
-{$ENDIF}
+{$B+,D-,G-,I-,L-,N-,P-,Q-,R-,S-,T-,V-,X+,Z-}
 
 unit Objects;
 
@@ -109,7 +106,8 @@ type
 	PSortedCollection = ^TSortedCollection;
 	TSortedCollection = object(TCollection)
 		public
-		Duplicates: boolean;
+		Duplicates,
+		Sort      : boolean;
 		constructor Init(ALimit,ADelta: longint);
 		function IndexOf(Item: pointer): longint; virtual;
 		procedure Insert(Item: pointer); virtual;
@@ -121,6 +119,7 @@ type
 	PStringCollection = ^TStringCollection;
 	TStringCollection = object(TSortedCollection)
 		public
+		CaseSensitive: boolean;
 		constructor Init(ALimit,ADelta: longint);
 		procedure FreeItem(Item: pointer); virtual;
 		function Compare(Key1,Key2: pointer): integer; virtual;
@@ -204,14 +203,12 @@ function TCollection.At(Index: longint): pointer;
 
 
 procedure TCollection.AtDelete(Index: longint);
-	var q: longint;
 
 	begin
 		if (Index<0) or (Index>=Count) then Error(coIndexError,Index)
 		else
 			begin
-				if Index<Count-1 then
-					for q:=Index to (Count-2) do Items^[q]:=Items^[q+1];
+				if Index<Count-1 then move(Items^[Index+1],Items^[Index],(Count-Index-1) shl 2);
 				dec(Count)
 			end
 	end;
@@ -228,7 +225,6 @@ procedure TCollection.AtFree(Index: longint);
 
 
 procedure TCollection.AtInsert(Index: longint; Item: pointer);
-	var q: longint;
 
 	begin
 		if (Index<0) or (Index>Count) then Error(coIndexError,Index)
@@ -237,8 +233,7 @@ procedure TCollection.AtInsert(Index: longint; Item: pointer);
 				if Count=Limit then SetLimit(Limit+Delta);
 				if Count<Limit then
 					begin
-						if Index<Count then
-							for q:=Count downto Index+1 do Items^[q]:=Items^[q-1];
+						if Index<Count then move(Items^[Index],Items^[Index+1],(Count-Index) shl 2);
 						Items^[Index]:=Item;
 						inc(Count)
 					end
@@ -392,7 +387,7 @@ function TCollection.LastThat(Test: PIterationFunc): pointer;
 procedure TCollection.Pack;
 	label _again;
 
-	var low,cur,pc,q: longint;
+	var low,cur,pc: longint;
 
 	begin
 		if Count>0 then
@@ -405,7 +400,7 @@ procedure TCollection.Pack;
 				while (Items^[cur]=nil) and (cur<pc) do inc(cur);
 				if cur<pc then
 					begin
-						for q:=low to cur-1 do Items^[q]:=Items^[q+1];
+						move(Items^[low+1],Items^[low],(cur-low) shl 2);
 						Items^[cur]:=nil;
 						goto _again
 					end;
@@ -419,7 +414,6 @@ procedure TCollection.Pack;
 
 procedure TCollection.SetLimit(ALimit: longint);
 	var dummy: PItemList;
-	    q    : longint;
 
 	begin
 		if ALimit<Count then ALimit:=Count;
@@ -430,8 +424,7 @@ procedure TCollection.SetLimit(ALimit: longint);
 				if ALimit>0 then getmem(dummy,ALimit shl 2);
 				if (dummy<>nil) or (ALimit=0) then
 					begin
-						if (Items<>nil) and (dummy<>nil) and (Count>0) then
-							for q:=0 to Count-1 do dummy^[q]:=Items^[q];
+						if (Items<>nil) and (dummy<>nil) and (Count>0) then move(Items^[0],dummy^[0],Count shl 2);
 						if Items<>nil then freemem(Items,Limit shl 2);
 						Limit:=ALimit;
 						Items:=dummy
@@ -451,7 +444,8 @@ constructor TSortedCollection.Init(ALimit,ADelta: longint);
 
 	begin
 		if not(inherited Init(ALimit,ADelta)) then fail;
-		Duplicates:=false
+		Duplicates:=false;
+		Sort:=true
 	end;
 
 
@@ -469,16 +463,21 @@ procedure TSortedCollection.Insert(Item: pointer);
 	var i: longint;
 
 	begin
-		if not(Search(KeyOf(Item),i)) then AtInsert(i,Item)
-		else
+		if Sort then
 			begin
-				if Duplicates then AtInsert(i,Item)
+				if not(Search(KeyOf(Item),i)) then AtInsert(i,Item)
 				else
 					begin
-						FreeItem(At(i));
-						AtPut(i,Item)
-					end;
+						if Duplicates then AtInsert(i,Item)
+						else
+							begin
+								FreeItem(At(i));
+								AtPut(i,Item)
+							end;
+					end
 			end
+		else
+			inherited Insert(Item)
 	end;
 
 
@@ -553,7 +552,8 @@ constructor TStringCollection.Init(ALimit,ADelta: longint);
 
 	begin
 		if not(inherited Init(ALimit,ADelta)) then fail;
-		Duplicates:=true
+		Duplicates:=true;
+		CaseSensitive:=true
 	end;
 
 
@@ -567,11 +567,22 @@ procedure TStringCollection.FreeItem(Item: pointer);
 function TStringCollection.Compare(Key1,Key2: pointer): integer;
 
 	begin
-		if PString(Key1)^>PString(Key2)^ then Compare:=1
+		if CaseSensitive then
+			begin
+				if PString(Key1)^>PString(Key2)^ then Compare:=1
+				else
+					if PString(Key1)^<PString(Key2)^ then Compare:=-1
+					else
+						Compare:=0
+			end
 		else
-			if PString(Key1)^<PString(Key2)^ then Compare:=-1
-			else
-				Compare:=0
+			begin
+				if StrPUpper(PString(Key1)^)>StrPUpper(PString(Key2)^) then Compare:=1
+				else
+					if StrPUpper(PString(Key1)^)<StrPUpper(PString(Key2)^) then Compare:=-1
+					else
+						Compare:=0
+			end
 	end;
 
 { *** TSTRINGCOLLECTION *** }
@@ -590,7 +601,9 @@ procedure TStrCollection.FreeItem(Item: pointer);
 function TStrCollection.Compare(Key1,Key2: pointer): integer;
 
 	begin
-		Compare:=Sgn(StrComp(Key1,Key2))
+		if CaseSensitive then Compare:=Sgn(StrComp(Key1,Key2))
+		else
+			Compare:=Sgn(StrIComp(Key1,Key2))
 	end;
 
 { *** TSTRCOLLECTION *** }

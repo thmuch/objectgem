@@ -1,29 +1,30 @@
-{**************************************
- *  O b j e c t G E M   Version 1.20  *
- *  Copyright 1992-94 by Thomas Much  *
- **************************************
- *       Unit  O W I N D O W S        *
- **************************************
- *    Softdesign Computer Software    *
- *    Thomas Much, Gerwigstraûe 46,   *
- *  76131 Karlsruhe, (0721) 62 28 41  *
- *         Thomas Much @ KA2          *
- *  UK48@ibm3090.rz.uni-karlsruhe.de  *
- **************************************
- *    erstellt am:        13.07.1992  *
- *    letztes Update am:  09.10.1994  *
- **************************************}
+{****************************************
+ *   O b j e c t G E M   Version 1.50   *
+ *   Copyright 1992-98 by Thomas Much   *
+ ****************************************
+ *        Unit  O W I N D O W S         *
+ ****************************************
+ *     Thomas Much, Gerwigstraûe 46,    *
+ * 76131 Karlsruhe, Fax (0721) 62 28 21 *
+ *          Thomas Much @ KA2           *
+ *  Thomas.Much@stud.uni-karlsruhe.de   *
+ *  www.uni-karlsruhe.de/~Thomas.Much   *
+ ****************************************
+ *      erstellt am:        13.07.1992  *
+ *      letztes Update am:  05.03.1999  *
+ ****************************************}
 
 {
   WICHTIGE ANMERKUNGEN ZUM QUELLTEXT:
 
-  ObjectGEM wird mit dem _vollstÑndigen_ Quelltext ausgeliefert, d.h.
-  jeder kann sich die Unit selbst compilieren, womit die extrem lÑstigen
-  KompatibilitÑtsprobleme mit den PP-Releases beseitigt sind.
-  ObjectGEM ist und bleibt aber trotzdem SHAREWARE, d.h. wer die Biblio-
-  thek regelmÑûig benutzt, muû sich REGISTRIEREN lassen. DafÅr gibt es
-  die neueste Version und - gegen einen geringen Aufpreis - auch ein
-  gedrucktes Handbuch.
+	ObjectGEM ist Freeware, d.h. jeder darf die Units verwenden, ohne
+	fÅr die damit entwickelten Programme Lizenzen o.Ñ. zahlen zu mÅssen,
+	so lange alle Dateien _zusammen_ und _unverÑndert_ (!) weitergegeben
+	werden.
+	
+	Ich freue mich natÅrlich trotzdem Åber kleine Aufmerksamkeiten wie
+	Belegexemplare, originelle T-Shirts (L oder XL) sowie grÅnen Tee
+	aus Japan :-)
 
   WICHTIG: Wer den Quelltext verÑndert und dann Probleme beim Compilieren,
   AusfÅhren o.Ñ. hat, kann nicht damit rechnen, daû ich den Fehler suche;
@@ -53,11 +54,7 @@
 }
 
 
-{$IFDEF DEBUG}
-	{$B+,D+,G-,I-,L+,N-,P-,Q+,R+,S+,T-,V-,X+,Z-}
-{$ELSE}
-	{$B+,D-,G-,I-,L-,N-,P-,Q-,R-,S-,T-,V-,X+,Z-}
-{$ENDIF}
+{$B+,D-,G-,I-,L-,N-,P-,Q-,R-,S-,T-,V-,X+,Z-}
 
 unit OWindows;
 
@@ -226,6 +223,8 @@ type
 		function IsHelpAvailable: boolean; virtual;
 		function GetHelp: string; virtual;
 		procedure SetHelp(Hlp: string); virtual;
+		function ExtFocusKey(Stat,Key: integer): boolean; virtual;
+		procedure ExtFocusPaint(r: GRECT); virtual;
 		function Previous: PControl;
 		function Next: PControl;
 		private
@@ -242,9 +241,11 @@ type
 		destructor Done; virtual;
 		function Install: boolean; virtual;
 		procedure Deinstall; virtual;
+		procedure SetShortCut(Key: char); virtual;
 		procedure SetText(ATextString: string); virtual;
 		function GetText: string; virtual;
 		private
+		TextLen : integer;
 		oldflags,
 		oldstate: word;
 		function GetRawText: string;
@@ -257,14 +258,16 @@ type
 		constructor Init(AParent: PDialog; AnIndx,ATextLen: integer; UserDef: boolean; Hlp: string);
 		destructor Done; virtual;
 		function Transfer(DataPtr: pointer; TransferFlag: word): word; virtual;
+		procedure Paint; virtual;
 		procedure SetText(ATextString: string); virtual;
 		function GetText: string; virtual;
 		function GetTextLen: integer; virtual;
 		procedure Clear; virtual;
 		private
 		oldflags,
-		oldtype : word;
-		usrused : boolean
+		oldtype  : word;
+		firstchar,
+		usrused  : boolean
 	end;
 
 	PEdit        = ^TEdit;
@@ -274,6 +277,7 @@ type
 		Clipboard: PClipboard;
 		constructor Init(AParent: PDialog; AnIndx,ATextLen: integer; Hlp: string);
 		destructor Done; virtual;
+		function GetState: integer; virtual;
 		procedure SetState(StateFlag: integer); virtual;
 		procedure SetText(ATextString: string); virtual;
 		procedure SetColor(Color: integer); virtual;
@@ -298,24 +302,35 @@ type
 		Uptr,
 		TPtr     : PChar;
 		modified : boolean;
-		EdIdx    : integer
+		EdIdx    : integer;
+		procedure colEnable;
+		procedure colDisable;
 	end;
 
 	PPopup       = ^TPopup;
 	TPopup       = object(TEvent)
 		public
-		PopTree: PTree;
+		PopTree  : PTree;
 		pX,
 		pY,
 		pIndex,
+		pStart,
 		pRows,
-		pMax,
-		pFlag  : integer;
-		constructor Init(AParent: PEventObject; tIndx,oIndx: integer);
+		pFlag,
+		CheckMark: integer;
+		Shadow,
+		AutoCheck: boolean;
+		List     : PStringCollection;
+		constructor Init(AParent: PEventObject; tIndx,oIndx,stIndx: integer);
+		constructor InitCollection(AParent: PEventObject; ACollection: PStringCollection; DisposeColl: boolean; MinColumns: integer);
 		destructor Done; virtual;
 		procedure SetPopTree(tree: PTree); virtual;
+		procedure FreePopTree; virtual;
+		procedure SetCollection(ACollection: PStringCollection); virtual;
+		function pMax: integer; virtual;
 		function Execute: integer; virtual;
-		function ExitPop(mX,mY: integer): integer; virtual;
+		function ClickExit(Indx,mX,mY,BStat: integer): boolean; virtual;
+		function ExitPop(Indx,mX,mY: integer): integer; virtual;
 		function KeyExit(Stat,Key: integer): integer; virtual;
 		procedure SetSelection(nr: integer); virtual;
 		function GetSelection: integer; virtual;
@@ -330,15 +345,25 @@ type
 		procedure Check(nr: integer); virtual;
 		procedure Uncheck(nr: integer); virtual;
 		procedure Toggle(nr: integer); virtual;
+		procedure SetOffset(Offs: integer); virtual;
+		function GetOffset: integer; virtual;
 		private
-		mnusr  : USERBLK;
-		shadow,
+		mnusr    : USERBLK;
 		wait0,
-		active : boolean;
+		active,
+		lfrtcrs,
+		lstdspose: boolean;
 		obj,
-		popsize: integer;
+		listoffs,
+		mincols  : integer;
+		popsize  : longint;
+		emptylist: PChar;
 		procedure MouseSim(sobj: integer);
+		function isstring(nr: integer): boolean;
 		function isanyenabled: boolean;
+		procedure checkoffs;
+		procedure filllist(draw: boolean; diff: integer);
+		procedure commoninit;
 	end;
 
 	PScroller    = ^TScroller;
@@ -372,8 +397,9 @@ type
 		procedure SetUnits(TheXUnit,TheYUnit: integer); virtual;
 		function GetXOrg: longint; virtual;
 		function GetYOrg: longint; virtual;
+		procedure RedrawParent(XDif,YDif: longint); virtual;
 		private
-		procedure RedrawParent(xdif,ydif: integer);
+		procedure ParentPaint(xdif,ydif: longint);
 	end;
 
 	TWindow      = object(TEventObject)
@@ -400,6 +426,7 @@ type
 		function GetStyle: integer; virtual;
 		function GetScroller: PScroller; virtual;
 		function GetClipboard: PClipboard; virtual;
+		function GetOLGAGroup: integer;
 		procedure GetWindowClass(var AWndClass: TWndClass); virtual;
 		procedure GetIconWindowClass(var AWndClass: TIconWndClass); virtual;
 		function GetClassName: string; virtual;
@@ -407,22 +434,27 @@ type
 		function GetTitle: string;
 		function CanClose: boolean; virtual;
 		function IsIconified: boolean;
+		function IsShaded: boolean;
 		function IsModeless: boolean;
 		function IsDialog: boolean; virtual;
-		function IsTop: boolean; virtual;
+		function IsTop: boolean;
 		procedure EnableAutoCreate;
 		procedure DisableAutoCreate;
 		procedure GetFull; virtual;
-		procedure GetCurr; virtual;
+		procedure GetCurr;
+		procedure GetRealCurr(var r: GRECT);
 		procedure GetWork; virtual;
+		procedure GetVWork(var r: GRECT); virtual;
 		procedure SetCurr(r: GRECT); virtual;
 		procedure SetWork(r: GRECT); virtual;
 		procedure LoadIcon(Icn: PIcon); virtual;
 		procedure FreeIcon; virtual;
-		procedure LoadMenu(Indx: integer); virtual;
+		procedure LoadMenu(Indx: integer; Tune: boolean); virtual;
 		procedure FreeMenu; virtual;
-		procedure LoadToolbar(Indx: integer; Opposite: boolean); virtual;
-		procedure FreeToolbar; virtual;
+		procedure LoadToolbar(Indx: integer); virtual;
+		procedure SwitchToolbar(Indx: integer); virtual;
+		procedure FreeToolbar(Indx: integer); virtual;
+		procedure SetToolbarPos(Opposite: boolean);
 		procedure LoadDialog(Indx: integer); virtual;
 		procedure FreeDialog; virtual;
 		procedure SetDlgTree(tree: PTree); virtual;
@@ -446,17 +478,19 @@ type
 		procedure IconPaint(var PaintInfo: TPaintStruct); virtual;
 		procedure ExitPaint; virtual;
 		procedure ForceRedraw; virtual;
-		procedure SetTitle(ATitle: string); virtual;
-		procedure SetSubTitle(AnInfo: string); virtual;
-		procedure SetGadgets(Style: integer); virtual;
-		procedure SetCursor(Crs: HCursor); virtual;
+		procedure ForceVRedraw; virtual;
+		procedure SetTitle(ATitle: string);
+		procedure SetSubTitle(AnInfo: string);
+		procedure SetGadgets(Style: integer);
+		procedure SetGadgetsSize(Style: integer; r: GRECT);
+		procedure SetCursor(Crs: HCursor);
 		procedure Calc(ctype: integer; ri: GRECT; var ro: GRECT); virtual;
 		procedure ChkAlign(var r: GRECT); virtual;
 		procedure ChkSize(var r: GRECT); virtual;
 		procedure GetWorkMin(var minX,minY: integer); virtual;
 		procedure GetWorkMax(var maxX,maxY: integer); virtual;
-		function GetDC: integer; virtual;
-		procedure ReleaseDC; virtual;
+		function GetDC: integer;
+		procedure ReleaseDC;
 		procedure MNSelected(meNum,mtNum: integer; Tree: PTree; PrIndx: integer); virtual;
 		procedure HandleMenu(meNum: integer); virtual;
 		procedure WMRedraw(X,Y,W,H: integer); virtual;
@@ -468,6 +502,7 @@ type
 		procedure WMVSlid(Value: integer); virtual;
 		procedure WMSized(X,Y,W,H: integer); virtual;
 		procedure WMMoved(X,Y,W,H: integer); virtual;
+		function DoRubbox(mX,mY,KStat: integer): boolean; virtual;
 		procedure WMButton(mX,mY,BStat,KStat,Clicks: integer); virtual;
 		procedure WMClick(mX,mY,KStat: integer); virtual;
 		procedure WMDblClick(mX,mY,KStat: integer); virtual;
@@ -486,18 +521,25 @@ type
 		procedure WMUniconify(oX,oY,oW,oH: integer); virtual;
 		procedure WMShaded; virtual;
 		procedure WMUnshaded; virtual;
+		procedure OLGAUpdated(OrgID,SrvID,InfoNr: integer; Link: string); virtual;
+		procedure OLGARenameLink(OrgID: integer; OldLink,NewLink: string); virtual;
+		procedure OLGALinkBroken(OrgID: integer; Link: string); virtual;
 		function DDGetPreferredTypes: string; virtual;
 		function DDGetPath: string; virtual;
 		function DDHeaderReply(dType,dName,fName: string; dSize: longint; OrgID,mX,mY,KStat: integer): byte; virtual;
 		function DDReadData(dType,dName,fName: string; dSize: longint; PipeHnd,OrgID,mX,mY,KStat: integer): boolean; virtual;
 		function DDReadArgs(dSize: longint; PipeHnd,OrgID,mX,mY,KStat: integer): boolean; virtual;
 		procedure DDFinished(OrgID,mX,mY,KStat: integer); virtual;
+		function FontChanged(OrgID,AnID,ASize,AColor,BackColor,Effects,ARotation,ASkew,HorAlign,VertAlign,AWidth,TrackKern: integer; Size31: fix31; PairKern,cWnd: boolean): boolean; virtual;
+		procedure ColorID(OrgID,mX,mY,palIndex: integer); virtual;
 		procedure Cut; virtual;
 		procedure Copy; virtual;
 		procedure Paste; virtual;
 		procedure Delete; virtual;
 		procedure SelectAll; virtual;
 		procedure Print; virtual;
+		function IsHelpAvailable(mX,mY: integer): boolean; virtual;
+		function GetHelp(mX,mY: integer): string; virtual;
 		function Previous: PWindow;
 		function Next: PWindow;
 		function At(Index: integer): PWindow;
@@ -505,19 +547,20 @@ type
 		function FirstWndThat(Test: PIterationFunc): PWindow;
 		procedure ForEachWnd(Action: PIterationProc);
 		procedure IconSelect(OnOff: boolean; OffExc: integer); virtual;
-		function FirstIcon(OnAll: boolean): PIcon; virtual;
-		function NextIcon: PIcon; virtual;
-		function FirstWorkRect(var Rect: GRECT): boolean; virtual;
-		function NextWorkRect(var Rect: GRECT): boolean; virtual;
+		function FirstIcon(OnAll: boolean): PIcon;
+		function NextIcon: PIcon;
+		function FirstWorkRect(var Rect: GRECT): boolean;
+		function NextWorkRect(var Rect: GRECT): boolean;
 		private
 		Prev,
 		Nxt     : PWindow;
 		nxticn  : PEvent;
 		icnonall,
-		ownhndl : boolean;
+		ownhndl,
+		tunemenu: boolean;
+		tbval   : array [0..MAXTOOLBARS] of TToolbarDescr;
 		icntitl : PString;
 		icnx,
-		tbsize,
 		tbtree,
 		icfpos,
 		icfstyle,
@@ -545,6 +588,7 @@ type
 		Attr            : TGEMAttr;
 		XAcc            : TXAccAttr;
 		XAccList        : PCollection;
+		OLGA            : TOLGAAttr;
 		Icon            : PIcon;
 		Clipboard       : PClipboard;
 		MetaDOS         : PMetaInfo;
@@ -553,16 +597,25 @@ type
 		MenuTree        : PTree;
 		MessageBuffer   : pointer;
 		MessageBLen,
-		AVServer        : integer;
+		AVServer,
+		OLGAManager     : integer;
 		apDTA           : DTA;
-		FirstInstance,
 		SpeedoActive,
 		GDOSActive,
 		MultiTOS,
 		MiNTActive,
+		MagiCActive,
+		NAESActive,
+		ExtObjects,
+		CanScaleIMG,
+		CanTransferBits,
+		HasNewColorFn,
+		HasColorIcons,
+		BubbleHelpActive,
 		IsQSBUsed,
 		FPUAvailable,
 		OSBAvailable,
+		Terminating,
 		Multitasking,
 		MemoryProtection: boolean;
 		constructor Init(AName: string);
@@ -578,6 +631,7 @@ type
 		function GetIconTitle: string; virtual;
 		function GetClipboard: PClipboard; virtual;
 		procedure GetXAccAttr(var XAccAttr: TXAccAttr); virtual;
+		function GetOLGAAttr(var OLGAAttr: TOLGAAttr): boolean; virtual;
 		function SendWndMessage(gHnd: integer; Msg: pointer; sID,Icn: boolean): boolean; virtual;
 		procedure Broadcast(Msg: pointer; sID: boolean); virtual;
 		function FindApplication(AName: string; AnID: integer; var XAccAttr: TXAccAttr): boolean; virtual;
@@ -598,7 +652,6 @@ type
 		procedure InitApplication; virtual;
 		procedure InitInstance; virtual;
 		procedure InitMainWindow; virtual;
-		function GetCurrInstance: integer; virtual;
 		function GetGPWindow(gHnd: integer): PWindow;
 		function GetPWindow(Hnd: HWnd): PWindow;
 		function GetPTopWindow: PWindow;
@@ -614,6 +667,7 @@ type
 		procedure MUM2(data: TEventData); virtual;
 		procedure MUMesag(data: TEventData); virtual;
 		procedure MUTimer(data: TEventData); virtual;
+		function ReadExtMessage(Pipe: Pipearray): boolean; virtual;
 		procedure MNSelected(meNum,mtNum: integer; Tree: PTree; PrIndx: integer); virtual;
 		procedure ACOpen(mID: integer); virtual;
 		function ACClose(mID,Why: integer): integer; virtual;
@@ -623,7 +677,12 @@ type
 		procedure ResChCompleted(Stat: integer); virtual;
 		procedure CHExit(ChID,ChRet: integer); virtual;
 		procedure SHWDraw(Drive: integer); virtual;
+		procedure FileSelected(Window: PWindow; OrgID: integer; Group: byte; Path: string; Files: PChar); virtual;
 		procedure SCChanged(OrgID: integer; Bits: word; Ext: string); virtual;
+		procedure PRNChanged(OrgID,Device,Action: integer); virtual;
+		procedure FNTChanged(OrgID: integer); virtual;
+		procedure ColorsChanged(OrgID: integer); virtual;
+		procedure ColorID(OrgID,mX,mY,palIndex: integer); virtual;
 		procedure XAccID(OrgID,mID: integer; Msg,Ver: byte; pName: PChar); virtual;
 		procedure XAccAcc(accID,mID: integer; Msg,Ver: byte; pName: PChar); virtual;
 		function XAccInsert(accID,mID: integer; Msg,Ver: byte; pName: PChar): boolean; virtual;
@@ -632,11 +691,23 @@ type
 		function XAccKey(OrgID,Stat,Key: integer): boolean; virtual;
 		function XAccMeta(OrgID: integer; pData: pointer; lData: longint; Final: boolean): boolean; virtual;
 		function XAccIMG(OrgID: integer; pData: pointer; lData: longint; Final: boolean): boolean; virtual;
+		procedure OLEExit(OrgID: integer); virtual;
+		procedure OLENew(OrgID,OLGAMsg,OLGAVer,OEP1,OEP2,ManagerVer: integer); virtual;
+		procedure OLGAInit(OrgID,Msg,Ver,eFlag: integer); virtual;
+		procedure OLGAUpdated(OrgID,SrvID,InfoNr,Group: integer; Link: string); virtual;
+		procedure OLGAGetInfo(OrgID,InfoNr: integer); virtual;
+		procedure OLGAInfo(OrgID,InfoNr: integer; InfoFile: string); virtual;
+		procedure OLGARenameLink(OrgID,Group: integer; OldLink,NewLink: string); virtual;
+		procedure OLGALinkBroken(OrgID,Group: integer; Link: string); virtual;
+		procedure OLGAAck(Pipe: Pipearray); virtual;
+		procedure OLGAObjects(OrgID,Rest: integer; Ext,Descr: string); virtual;
+		procedure OLGAIdle(OrgID,d4,d5,d6,d7: integer); virtual;
 		procedure AVProtokoll(OrgID: integer; Msg: word; AName: string); virtual;
 		procedure VAProtoStatus(OrgID: integer; Msg: word; AName: string); virtual;
 		function AVInsert(accID: integer; SrvMsg,AccMsg: word; AName: string): boolean; virtual;
 		procedure AVSendKey(Stat,Key: integer); virtual;
-		procedure VAStart(OrgID: integer; Cmd: string); virtual;
+		procedure AVSendClick(mX,mY,BStat,KStat,Clicks: integer); virtual;
+		procedure VAStart(OrgID: integer; Cmd: PChar); virtual;
 		procedure AVStartProg(OrgID,Ret: integer; Prg,Cmd: string); virtual;
 		procedure AVExit(OrgID: integer); virtual;
 		function DDGetPreferredTypes(WindID: integer): string; virtual;
@@ -645,6 +716,7 @@ type
 		function DDReadData(dType,dName,fName: string; dSize: longint; PipeHnd,OrgID,WindID,mX,mY,KStat: integer): boolean; virtual;
 		function DDReadArgs(dSize: longint; PipeHnd,OrgID,WindID,mX,mY,KStat: integer): boolean; virtual;
 		procedure DDFinished(OrgID,WindID,mX,mY,KStat: integer); virtual;
+		function StartApp(Path,Cmd: string): integer;
 		procedure Cut; virtual;
 		procedure Copy; virtual;
 		procedure Paste; virtual;
@@ -664,59 +736,71 @@ type
 		procedure Terminate; virtual;
 		procedure Run; virtual;
 		procedure Quit; virtual;
+		procedure Bing; virtual;
 		function At(Index: integer): PWindow;
 		function IndexOf(Item: PWindow): integer;
 		function FirstWndThat(Test: PIterationFunc): PWindow;
 		procedure ForEachWnd(Action: PIterationProc);
-		function FirstIcon(OnAll: boolean): PIcon; virtual;
+		function FirstIcon(OnAll: boolean): PIcon;
 		function NextIcon: PIcon; virtual;
 		procedure IconSelect(OnOff: boolean; OffExc: integer); virtual;
 		procedure IconPaint(Work: GRECT; var PaintInfo: TPaintStruct); virtual;
-		procedure BubbleHelp(mX,mY: integer; Delay: word; Hlp: string); virtual;
+		procedure BubbleHelp(mX,mY: integer; Hlp: string; mouse,demon: boolean); virtual;
 		function ExecDialog(ADialog: PDialog): integer; virtual;
 		function Alert(AParent: PWindow; DefBtn: integer; Sign: longint; Txt,Btn: string): integer; virtual;
 		function Popup(APopup: PPopup; x,y,Flag: integer): integer; virtual;
 		function Rubbox(WHnd,x,y,xmin,ymin,xmax,ymax: integer; IconSel: boolean; var r: GRECT): boolean; virtual;
+		procedure ReleaseMouseButton(Mask:integer);
 		procedure InvalidateRect(Wnd: HWnd; Rect: PGRECT); virtual;
-		procedure RestoreModalDialog(p: PWindow); virtual;
+		procedure RestoreModalDialog(p: PWindow);
 		procedure DeskRedraw; virtual;
 		procedure SetQuit(mNum,tNum: integer); virtual;
 		procedure GetMenuEntries(var Entries: TMenuEntries); virtual;
+		procedure CheckMenuEntries; virtual;
+		procedure SetError(AnError: integer); virtual;
 		function ChkError: integer; virtual;
 		function ChkSpeedoError: integer; virtual;
 		procedure Error(ErrorCode: integer); virtual;
+		procedure	FixResource(raddr: pointer; mode,what: boolean);
+		function GetObjectParent(tree: PTree; indx: integer): integer;
+		function IsTreeHidden(tree: PTree; pobj: integer): boolean;
 		private
 		Err,
 		DlgTop,
 		ticn,
-		iicn       : integer;
+		iicn,
+		hwratio,
+		xaccnlen   : integer;
+		cmdlen,
+		stewart,
 		nxtapp     : longint;
 		termflag,
 		allicn,
 		ddokflag,
+		extmagxmenu,
 		icnonall   : boolean;
 		napptype   : TAppTypeMR;
 		nappgen    : PString;
+		startcmd   : pointer;
 		nxticn     : PEvent;
 		HMax       : HWnd;
+		xfont      : Pipearray;
 		mnusr      : USERBLK;
 		pquit      : PKeyMenu;
 		pcrswatch,
 		icnwnd     : PWindow;
 		wmnr       : HCursor;
 		wmform     : MFORM;
+		bubblebuf,
 		xaccname   : PChar;
 		menuentries: PMenuEntries;
 		procedure MoveIcons(Wnd: PEventObject; Icn: PIcon; gHnd,mX,mY: integer);
-		function GetObjectParent(tree: PTree; indx: integer): integer;
 		function find_object(tree: PTree; start,which: integer): integer;
 		function ini_field(tree: PTree; start: integer): integer;
-		function form_keybd(fo_ktree: PTree; fo_kobject,fo_kobnext,fo_kchar: integer; var fo_knxtobject,fo_knxtchar: integer): integer;
+		function form_keybd(pd: PDialog; fo_ktree: PTree; fo_kobject,fo_kobnext,fo_kchar,fo_kstat: integer; var fo_knxtobject,fo_knxtchar: integer): integer;
 		function form_button(pd: PDialog; fo_bobject,fo_bclicks: integer; var fo_bnxtobj: integer): boolean;
 		procedure GOErrAlert(sign: integer; msg: string);
 		function XAccMR2HR(MR: TAppTypeMR): string;
-		function AlertBubbleWrap(txt: string; width: integer): string;
-		procedure	FixResource(raddr: pointer; mode,what: boolean);
 		function MenuCorrect(mt: PTree; var i: integer): boolean;
 		procedure MenuTune;
 		procedure TitleSelect(pw: PWindow; indx: integer; select: boolean);
@@ -748,10 +832,12 @@ type
 		procedure CloseWindow; virtual;
 		procedure Destroy; virtual;
 		procedure Paint(var PaintInfo: TPaintStruct); virtual;
-		procedure ObjcPaint(Indx: integer; Lazy: boolean); virtual;
+		procedure ObjcPaint(Indx: integer; Lazy: boolean);
+		procedure ObjcPaintRect(Indx: integer; const Rect: GRECT; Lazy: boolean); virtual;
 		procedure GetWorkMax(var maxX,maxY: integer); virtual;
 		procedure WMClosed; virtual;
 		procedure WMButton(mX,mY,BStat,KStat,Clicks: integer); virtual;
+		function SelectDisabled(AnIndx,KStat,Clicks: integer): boolean; virtual;
 		procedure Execute; virtual;
 		procedure EndDlg(Indx: integer; DblClick: boolean); virtual;
 		procedure TransferData(Direction: word); virtual;
@@ -761,6 +847,7 @@ type
 		function Help: boolean; virtual;
 		function Undo: boolean; virtual;
 		function Esc: boolean; virtual;
+		function TestFKey(fNum: integer): integer; virtual;
 		procedure Cut; virtual;
 		procedure Copy; virtual;
 		procedure Paste; virtual;
@@ -768,31 +855,42 @@ type
 		function FirstThat(Test: PIterationFunc): PControl;
 		procedure ForEach(Action: PIterationProc);
 		procedure SetDefaultButton(Obj: integer); virtual;
-		function GetDefaultButton: integer; virtual;
+		function GetDefaultButton: integer;
+		function InsertChar(ch: char): boolean; virtual;
 		procedure InitFocus; virtual;
 		procedure SetFocus(Obj: integer); virtual;
-		function GetFocus: integer; virtual;
+		function GetFocus: integer;
+		procedure SetExtFocus(Obj: integer); virtual;
+		function GetExtFocus: integer;
+		function HasActiveFocus(obj: integer): boolean;
 		procedure CallChanged(Indx: integer; dclk,edt,push: boolean); virtual;
+		function GetHelp(mX,mY: integer): string; virtual;
+		function GetModalTimer: longint; virtual;
+		procedure HandleModalTimer; virtual;
 		private
 		edit_obj,
 		next_obj,
 		wmaxw,
 		wmaxh,
 		idx,
+		extfocus,
 		dlgsize : integer;
 		BValid,
 		d0fly,
 		bsave,
+		magxedit,
+		obedinit,
 		obedflag: boolean;
 		BackGr  : MFDB;
 		BLen,
 		frwid   : longint;
 		kbdh    : PEvent;
 		pedt    : PEdit;
+		pxfocus : PControl;
 		procedure MoveDial(mX,mY: integer);
 		procedure SaveBackground;
 		procedure RestoreBackground;
-		function objc_edit(var ob_edchar: integer; ob_edkind: integer; clp: ARRAY_4; cclp: boolean): integer;
+		function objc_edit(var ob_edchar: integer; ob_edkind, ob_kstat: integer; clp: ARRAY_4; cclp: boolean): integer;
 	end;
 
 	PToolbar     = ^TToolbar;
@@ -808,6 +906,7 @@ type
 		VGHnd   : boolean;
 		constructor Init(AParent: PWindow; ATree,AnIndx,Stat,Key: integer; Msg: pointer; GetHnd,Switch: boolean; Hlp: string);
 		destructor Done; virtual;
+		function IsToolbarInstalled: boolean;
 		function TestKey(Stat,Key: integer): boolean; virtual;
 		function TestMessage(Pipe: Pipearray): boolean; virtual;
 		function GetState: integer; virtual;
@@ -819,6 +918,7 @@ type
 		procedure Check; virtual;
 		procedure Uncheck; virtual;
 		procedure Toggle; virtual;
+		function IsChecked: boolean; virtual;
 		procedure Paint; virtual;
 		function IsHelpAvailable: boolean; virtual;
 		function GetHelp: string; virtual;
@@ -862,6 +962,15 @@ type
 		function GetMenuTree: PTree;
 	end;
 
+	PSubMenu = ^TSubMenu;
+	TSubMenu = object(TKeyMenu)
+		Popup: PPopup;
+		constructor Init(AParent: PEventObject; mNum,popTree,popIndex: integer);
+		destructor Done; virtual;
+		procedure Work; virtual;
+		procedure HandleMenu(Indx: integer); virtual;
+	end;
+
 	PKey         = ^TKey;
 	TKey         = object(TKeyMenu)
 		public
@@ -882,33 +991,54 @@ var
 	Application: PApplication;
 	pxya       : ptsin_ARRAY;
 	SysInfo    : record
-		BGDefCol,
-		SFHeight,
-		SFWidth : integer;
-		Desktop : GRECT
+		HotKeyCol,
+		UsrDefCol,
+		BGDefCol   : integer;
+		DefCol     : TCOLOR_ENTRY;
+		DefColValid: boolean;
+		Desktop    : GRECT;
+		Font,
+		SmallFont  : record
+			ID,
+			Point,
+			Height,
+			Width : integer
+		end
 	end;
 
 
 function GEMVersion: word;
 function IsDesktopActive: boolean;
 procedure GetQSB(var p: pointer; var len: longint);
+procedure GlobalAlloc(var p: pointer; size: longint);
+procedure GlobalFree(var p: pointer; size: longint);
 function GetTempDir: string;
 function GetHomeDir(RootDefault: boolean): string;
+function FilePathSelect(AParent: PWindow; ATitle,AMask: string; var APath,AFile: string; AllowPaths,ForceExist: boolean): boolean;
 function FileSelect(AParent: PWindow; ATitle,AMask: string; var APath,AFile: string; ForceExist: boolean): boolean;
+function XFileSelect(AParent: PWindow; ATitle,AMask: string; var APath,AFile: string; MaxFiles: integer; Group: byte; ForceExist,Modal: boolean): boolean;
 function OpenPrivateProfile(FileName: string): boolean;
 function SavePrivateProfile: boolean;
 function ClosePrivateProfile: boolean;
 function WritePrivateProfileString(AppName,KeyName,Value,FileName: string): boolean;
+function WritePrivateProfileBool(AppName,KeyName: string; Value: boolean; FileName: string): boolean;
 function WritePrivateProfileInt(AppName,KeyName: string; Value: longint; FileName: string): boolean;
 function GetPrivateProfileString(AppName,KeyName,Default,FileName: string): string;
+function GetPrivateProfileBool(AppName,KeyName: string; Default: boolean; FileName: string): boolean;
 function GetPrivateProfileInt(AppName,KeyName: string; Default: longint; FileName: string): longint;
+function GetPrivateProfileIntRange(AppName,KeyName: string; Default,MinVal,MaxVal: longint; FileName: string): longint;
 function WriteProfileString(AppName,KeyName,Value: string): boolean;
+function WriteProfileBool(AppName,KeyName: string; Value: boolean): boolean;
 function WriteProfileInt(AppName,KeyName: string; Value: longint): boolean;
 function GetProfileString(AppName,KeyName,Default: string): string;
+function GetProfileBool(AppName,KeyName: string; Default: boolean): boolean;
 function GetProfileInt(AppName,KeyName: string; Default: longint): longint;
+function GetProfileIntRange(AppName,KeyName: string; Default,MinVal,MaxVal: longint): longint;
 procedure vr_convert(handle: integer; psrcMFDB: MFDB; format: integer);
 procedure vr_trnfm(handle: integer; psrcMFDB,pdesMFDB: MFDB);
 procedure vdi_fix(var pfd: MFDB; theAddr: pointer; w,h: integer);
+function SetSystemFont(handle: integer; var wc,hc,wb,hb: integer): integer;
+function SetSmallSystemFont(handle: integer; var wc,hc,wb,hb: integer): integer;
 function SetMouse(Indx: HCursor; Form: MFORMPtr): integer;
 procedure GetMouse(var Indx: HCursor; var Form: MFORM);
 procedure SetMousePos(mX,mY: integer);
@@ -921,6 +1051,9 @@ procedure BusyMouse;
 procedure SliceMouse;
 procedure SliceMouseNext;
 procedure LastMouse;
+function vst_fg_color(handle,color_space: integer; const fg_color: TCOLOR_ENTRY): integer;
+function vst_bg_color(handle,color_space: integer; const bg_color: TCOLOR_ENTRY): integer;
+function appl_xgetinfo(ap_gtype: integer; var ap_gout1,ap_gout2,ap_gout3,ap_gout4: integer): boolean;
 
 
 
@@ -935,7 +1068,7 @@ const
 	outlwidth          = 3;
 	Ctrl_Backdrop      = 25871;
 	Ctrl_Fuller        = 26122;
-	Ctrl_Iconify       = 28435;
+	CtrlAlt_Iconify    = 14592;
 	Ctrl_Cycle         = Ctrl_W;
 	Ctrl_Close         = Ctrl_U;
 	Ctrl_Quit          = Ctrl_Q;
@@ -947,62 +1080,59 @@ const
 	FIX_BBONLY         = false;
 	POP_MAXROWS        = 19;
 	EDDRAW             = 42;
-	EDIDX              = 43;
+	EDIDXPOS           = 43;
 	EDIDXABS           = 44;
+	ED_CRSR            = 100;
+	ED_DRAW            = 103;
 	FMD_BACKWARD       = -1;
 	FMD_FORWARD        = -2;
 	FMD_DEFLT          = -3;
 	ICF_GETPOS         = $0001;
 	ICF_FREEPOS        = $0002;
+	ICF_SNAP           = $0003;
 	RSC_LOADED         : pointer = pointer(1);
 	TEST_BEG_UPDATE    = BEG_UPDATE or $0100;
 	WF_WINX            = 22360;
+	WF_SHADE           = 22365;
 	WM_M_BDROPPED      = 100;
-	_SCP               = 1599292240;
+	WinChangeFont      = 30961;
 	SYSPROFILE         = 'user.inf';
+	XSELMAX            = 18;
+	WIN_TOPPED         = $7a22;
+	WIN_CLOSED         = $7a23;
 
 type
 
-	PAppInfo = ^TAppInfo;
-	TAppInfo = record
-		App : PApplication;
-		Ver : word;
-		Name: string[19];
-		Prev,
-		Next: PAppInfo
-	end;
-
-	INFOVSCRPtr        = ^INFOVSCR;
-	INFOVSCR           = record
+	INFOVSCRPtr = ^INFOVSCR;
+	INFOVSCR    = record
 		cookie,
 		product: longint;
 		version: word;
 		x,y,w,h: integer
 	end;
 
-	PAESVARS           = ^AESVARS;
-	AESVARS            = record
-		magic      : longint;
-		membot,
-		aes_start  : pointer;
-		magic2     : TCookieID;
-		date       : longint;
-		chgres,
-		shel_vector,
-		aes_bootdrv,
-		vdi_device : pointer;
-		reservd1,
-		reservd2,
-		reservd3   : pointer;
-		version,
-		release    : integer
+	STEW_COOKPtr = ^STEW_COOK;
+	STEW_COOK    = record
+		menu_on,
+		bck_col,
+		dis_col: integer
 	end;
 
-	PMAGX_COOKIE       = ^MAGX_COOKIE;
-	MAGX_COOKIE        = record
-		config_status: longint;
-		dos_vars     : pointer;
-		aes_vars     : PAESVARS
+	PSelectric = ^TSelectric;
+	TSelectric = record
+		magic  : TCookieID;
+		version: word
+	end;
+
+	PFdmStr = ^TFdmStr;
+	TFdmStr = record
+		magic : TCookieID;
+		id,
+		maxsel: integer;
+		flags : longint;
+		handle,
+		server: integer;
+		path  : array [0..255] of char
 	end;
 
 	PLTMFLY = ^LTMFLY;
@@ -1025,6 +1155,14 @@ type
 		hist_insert,
 		ins_spcchar,
 		init_niceline: pointer
+	end;
+
+	PAFNT = ^AFNT;
+	AFNT = record
+		af_magic    : TCookieID;
+		version,
+		installed   : integer;
+		afnt_getinfo: function(d1,d2: pointer; d3,d4,d5: longint; af_gtype: integer; var af_gout1,af_gout2,af_gout3,af_gout4: integer): integer;
 	end;
 
 	TedinfoArrayPtr    = ^TedinfoArray;
@@ -1057,8 +1195,15 @@ type
 
 	PMenuPopup = ^TMenuPopup;
 	TMenuPopup = object(TPopup)
-		function ExitPop(mX,mY: integer): integer; virtual;
+		function ExitPop(Indx,mX,mY: integer): integer; virtual;
 		function KeyExit(Stat,Key: integer): integer; virtual;
+	end;
+
+	PAlrtDialog = ^TAlrtDialog;
+	TAlrtDialog = object(TDialog)
+		cntbutton,
+		firstbutton: integer;
+		function TestFKey(fNum: integer): integer; virtual;
 	end;
 
 	PIcnWnd            = ^TIcnWnd;
@@ -1083,38 +1228,60 @@ type
 var
 
 	OldExit,
-	icfserver  : pointer;
-	upath      : PChar;
+	icfserver,
+	upath      : pointer;
+	paf        : PAFNT;
 	ltmf       : PLTMFLY;
+	defcolfg   : TCOLOR_ENTRY;
 	appdone,
 	cliplock,
 	deskinst,
+	has_agi,
 	profilechng: boolean;
+	d_str      : string;
+	d_btn      : string[40];
+	d_chr      : PChar;
+	d_pxy,
+	d_clip     : ARRAY_4;
+	d_ty,
+	d_tx,
+	d_scpos,
 	mhstack,
 	mfstack,
 	spderr,
 	bfalcol,
 	slmouse,
-	poptimer   : integer;
+	poptimer,
+	freedom,
+	allocmode,
+	heaperrcode: integer;
+	profkeyat,
 	lastfa     : longint;
-	bbldelay   : word;
-	appinfo    : PAppInfo;
 	profile    : PProfileCollection;
-	profilename: PString;
+	profilename,
+	lastprofkey: PString;
+	xselwind   : array [0..XSELMAX+1] of record
+		window : PWindow;
+		fdmwhnd,
+		group  : integer
+	end;
 	agi        : record
 		Gadgets    : integer;
-		ColorIcons,
 		ExtRsc,
 		ApplSearch,
 		MenuInq,
 		ExtMnSelect,
+		SysNiceline,
 		WindUpdate,
 		Shutdown,
 		Broadcast,
 		MultiProto,
+		MnAttach,
 		Iconify,
 		Backdrop,
+		GShortcut,
 		Owner,
+		Shading,
 		BEvent     : boolean
 	end;
 	maus       : record
@@ -1133,7 +1300,9 @@ procedure SigHandler(dummy1,dummy2,sig: pointer); forward;
 procedure IconifyFadeout(p: PWindow); forward;
 procedure IconifyFadein(p: PWindow); forward;
 procedure SendXaccExit(p: PXAccAttr); forward;
-
+function objc_wedit(ob_edtree: PTree; ob_edobject,ob_edchar: integer; var ob_edidx: integer; ob_edkind,ob_edwnd: integer): integer; forward;
+function objc_xedit(ob_edtree: PTree; ob_edobject,ob_edchar: integer; var ob_edidx: integer; ob_edkind: integer; pr: PGRECT): integer; forward;
+procedure nop; begin end;
 
 
 { *** Objekt TEVENTOBJECT *** }
@@ -1270,7 +1439,9 @@ procedure TValidator.Error;
 		if Application<>nil then
 			with Application^ do
 				begin
-					if (Attr.Country=FRG) or (Attr.Country=SWG) then
+					if Attr.Country=FRA then
+						Alert(Window,1,NOTE,'Cette entrÇe ne peut àtre vide!','  &OK  ')
+					else if (Attr.Country=FRG) or (Attr.Country=SWG) then
 						Alert(Window,1,NOTE,'Die Eingabe darf nicht leer sein!','  &OK  ')
 					else
 						Alert(Window,1,NOTE,'Input must not be empty!','  &OK  ')
@@ -1431,7 +1602,7 @@ function TIcon.TestButton(mX,mY,BStat,KStat,Clicks: integer): boolean;
 				else
 					if (BStat=2) and (Clicks=1) then
 						begin
-							if IsHelpAvailable then Application^.BubbleHelp(mX,mY,bbldelay,GetHelp);
+							if IsHelpAvailable then Application^.BubbleHelp(mX,mY,GetHelp,false,false);
 							TestButton:=true
 						end
 			end
@@ -1622,7 +1793,6 @@ procedure TIcon.Paint;
 	    ipxy,tpxy : ARRAY_4;
 	    dummy,vh,
 	    icnbc,txbc: integer;
-	    dname     : string[33];
 
 	begin
 		if IsHidden then exit;
@@ -1640,7 +1810,7 @@ procedure TIcon.Paint;
 				ipxy[3]:=ob_y+ob_height-1
 			end;
 		vh:=Application^.vdiHandle;
-		vst_point(vh,8,dummy,dummy,dummy,dummy);
+		SetSmallSystemFont(vh,dummy,dummy,dummy,dummy);
 		vst_alignment(vh,TA_LEFT,TA_TOP,dummy,dummy);
 		vsf_interior(vh,FIS_SOLID);
 		vqt_attributes(vh,atrb);
@@ -1678,7 +1848,7 @@ procedure TIcon.Paint;
 		ShowMouse;
 		vsf_interior(vh,FIS_HOLLOW);
 		vsf_color(vh,Black);
-		vst_height(vh,SysInfo.SFHeight,dummy,dummy,dummy,dummy);
+		SetSystemFont(vh,dummy,dummy,dummy,dummy);
 		vst_alignment(vh,TA_LEFT,TA_BASELINE,dummy,dummy);
 		vs_clip(vh,CLIP_ON,SysInfo.Desktop.A2);
 		wind_update(END_UPDATE)
@@ -1690,7 +1860,7 @@ function TIcon.IsHelpAvailable: boolean;
 	begin
 		if BHelp=nil then IsHelpAvailable:=false
 		else
-			IsHelpAvailable:=(length(StrPTrimF(BHelp^))<>0)
+			IsHelpAvailable:=(length(StrPTrimF(BHelp^))>0)
 	end;
 
 
@@ -1796,7 +1966,6 @@ function TClipboard.OpenClipboard(Write: boolean): boolean;
 	begin
 		OpenClipboard:=false;
 		if cliplock then exit;
-		if Psemaphore(2,_SCP,100)=-1 then exit;
 		if not(AppFlag) then wind_update(BEG_UPDATE);
 		BusyMouse;
 		olddta:=fgetdta;
@@ -1842,7 +2011,7 @@ function TClipboard.OpenClipboard(Write: boolean): boolean;
 			if not(setpath) then goto _raus;
 		if valid then
 			if scrp_write(path)=0 then goto _raus;
-		clippath:=NewStr(path+'SCRAP.');
+		clippath:=NewStr(path+'scrap.');
 		if clippath=nil then goto _raus;
 		openflag:=true;
 		writeflag:=false;
@@ -1857,7 +2026,6 @@ function TClipboard.OpenClipboard(Write: boolean): boolean;
 		goto _fertig;
 		_raus:
 		ArrowMouse;
-		Psemaphore(3,_SCP,0);
 		_fertig:
 		fsetdta(olddta);
 		if not(AppFlag) then wind_update(END_UPDATE)
@@ -1892,7 +2060,7 @@ function TClipboard.GetPriorityClipboardFormat(PriorityList: string): string;
 				ps:=pos('.',PriorityList);
 				if IsClipboardFormatAvailable(StrPLeft(PriorityList,ps-1)) then
 					begin
-						GetPriorityClipboardFormat:=StrPUpper(StrPLeft(PriorityList,ps-1));
+						GetPriorityClipboardFormat:=StrPLeft(PriorityList,ps-1);
 						exit
 					end;
 				PriorityList:=StrPRight(PriorityList,length(PriorityList)-ps)
@@ -1901,10 +2069,14 @@ function TClipboard.GetPriorityClipboardFormat(PriorityList: string): string;
 
 
 function TClipboard.IsClipboardFormatAvailable(Format: string): boolean;
+	label _weiter;
+
 	var olddta : DTAPtr;
 	    newdta : DTA;
-	    formate: string;
+	    formate,
+	    buf    : string;
 	    ret    : integer;
+	    hdl    : longint;
 
 	begin
 		IsClipboardFormatAvailable:=false;
@@ -1912,17 +2084,30 @@ function TClipboard.IsClipboardFormatAvailable(Format: string): boolean;
 		if formats=nil then
 			begin
 				formate:='.';
-				if not(AppFlag) then wind_update(BEG_UPDATE);
-				olddta:=fgetdta;
-				fsetdta(@newdta);
-				ret:=fsfirst(clippath^+'*',FA_HIDDEN);
-				while ret=0 do
+				hdl:=dopendir(GetRawPath(clippath^),0);
+				if (hdl and $ff000000)=$ff000000 then
 					begin
-						if length(newdta.d_fname)>6 then formate:=StrPRight(newdta.d_fname,length(newdta.d_fname)-5)+formate;
-						ret:=fsnext
+						if hdl=-32 then
+							begin
+								if not(AppFlag) then wind_update(BEG_UPDATE);
+								olddta:=fgetdta;
+								fsetdta(@newdta);
+								ret:=fsfirst(clippath^+'*',FA_HIDDEN);
+								while ret=0 do
+									begin
+										if length(newdta.d_fname)>6 then formate:=StrPRight(newdta.d_fname,length(newdta.d_fname)-5)+formate;
+										ret:=fsnext
+									end;
+								fsetdta(olddta);
+								if not(AppFlag) then wind_update(END_UPDATE)
+							end;
+						goto _weiter
 					end;
-				fsetdta(olddta);
-				if not(AppFlag) then wind_update(END_UPDATE);
+				while dreaddir(255,hdl,buf)=0 do
+					if StrPUpper(StrPLeft(StrPPas(@buf[4]),6))='SCRAP.' then
+						formate:=StrPRight(StrPPas(@buf[4]),StrLen(@buf[4])-5)+formate;
+				dclosedir(hdl);
+				_weiter:
 				formats:=NewStr(StrPUpper(formate))
 			end;
 		if (formats=nil) or (length(Format)=0) then exit;
@@ -1932,32 +2117,48 @@ function TClipboard.IsClipboardFormatAvailable(Format: string): boolean;
 
 
 function TClipboard.EmptyClipboard: boolean;
-	var olddta: DTAPtr;
-	    newdta: DTA;
-	    path  : string;
-	    ret   : integer;
-	    f     : file;
+	label _raus;
+
+	var olddta  : DTAPtr;
+	    newdta  : DTA;
+	    path,buf: string;
+	    ret     : integer;
+	    hdl     : longint;
 
 	begin
 		EmptyClipboard:=false;
 		if not(IsOpen) then exit;
-		if not(AppFlag) then wind_update(BEG_UPDATE);
-		BusyMouse;
 		path:=StrPLeft(clippath^,RPos('\',clippath^));
-		olddta:=fgetdta;
-		fsetdta(@newdta);
-		ret:=fsfirst(clippath^+'*',FA_HIDDEN);
-		while ret=0 do
+		hdl:=dopendir(GetRawPath(clippath^),0);
+		if (hdl and $ff000000)=$ff000000 then
 			begin
-				assign(f,path+newdta.d_fname);
-				erase(f);
-				ret:=fsnext
+				if hdl=-32 then
+					begin
+						if not(AppFlag) then wind_update(BEG_UPDATE);
+						BusyMouse;
+						olddta:=fgetdta;
+						fsetdta(@newdta);
+						ret:=fsfirst(clippath^+'*',FA_HIDDEN);
+						while ret=0 do
+							begin
+								fdelete(path+newdta.d_fname);
+								ret:=fsnext
+							end;
+						if fsfirst(clippath^+'*',FA_HIDDEN)<>0 then EmptyClipboard:=true;
+						fsetdta(olddta);
+						ArrowMouse;
+						if not(AppFlag) then wind_update(END_UPDATE)
+					end;
+				goto _raus
 			end;
-		if fsfirst(clippath^+'*',FA_HIDDEN)<>0 then EmptyClipboard:=true;
-		fsetdta(olddta);
-		SetClipboardFormat(SCF_INDEF,'');
+		BusyMouse;
+		while dreaddir(255,hdl,buf)=0 do
+			if StrPUpper(StrPLeft(StrPPas(@buf[4]),6))='SCRAP.' then fdelete(path+StrPPas(@buf[4]));
+		dclosedir(hdl);
+		EmptyClipboard:=true;
 		ArrowMouse;
-		if not(AppFlag) then wind_update(END_UPDATE)
+		_raus:
+		SetClipboardFormat(SCF_INDEF,'')
 	end;
 
 
@@ -1966,7 +2167,6 @@ procedure TClipboard.SetClipboardFormat(Mask: word; Ext: string);
 	begin
 		if not(IsOpen) then exit;
 		clipmask:=Mask;
-		StrPTrim(Ext);
 		if length(Ext)>0 then
 			if StrPLeft(Ext,1)<>'.' then Ext:='.'+Ext;
 		while length(clipext)<4 do clipext:=clipext+#0;
@@ -1984,7 +2184,6 @@ function TClipboard.CloseClipboard: boolean;
 		if not(IsOpen) then exit;
 		cliplock:=false;
 		openflag:=false;
-		Psemaphore(3,_SCP,0);
 		CloseClipboard:=true;
 		ArrowMouse;
 		if writeflag then
@@ -2002,19 +2201,11 @@ function TClipboard.CloseClipboard: boolean;
 				if Application^.AVServer>=0 then
 					begin
 						pfad:=StrPLeft(clippath^,length(clippath^)-6);
-						if Application^.MemoryProtection then
-							begin
-								if upath<>nil then mfree(upath);
-								upath:=mxalloc(length(pfad)+1,GLOBAL);
-								if upath<>nil then StrPCopy(upath,pfad)
-							end
-						else
-							begin
-								ChrDispose(upath);
-								upath:=ChrNew(pfad)
-							end;
+						if upath<>nil then GlobalFree(upath,StrLen(upath)+1);
+						GlobalAlloc(upath,length(pfad)+1);
 						if upath<>nil then
 							begin
+								StrPCopy(upath,pfad);
 								pipe[0]:=AV_PATH_UPDATE;
 								pipe[1]:=Application^.apID;
 								pipe[2]:=0;
@@ -2185,7 +2376,7 @@ procedure TControl.SetColor(Color: integer);
 				ot:=ObjAddr^.ob_type and $ff;
 				with ObjAddr^.ob_spec do
 					begin
-						if ot in [G_BOX,G_IBOX,G_BOXCHAR] then index:=(index and $fffff0ff) or (Color shl 8)
+						if ot in [G_BOX,G_IBOX,G_BOXCHAR] then index:=(index and $fffffff0) or Color
 						else
 							if ot in [G_TEXT,G_BOXTEXT,G_FTEXT,G_FBOXTEXT] then ted_info^.te_color:=(ted_info^.te_color and $f0ff) or (Color shl 8)
 							else
@@ -2204,7 +2395,7 @@ function TControl.GetColor: integer;
 	begin
 		GetColor:=Black;
 		ot:=ObjAddr^.ob_type and $ff;
-		if ot in [G_BOX,G_IBOX,G_BOXCHAR] then GetColor:=(ObjAddr^.ob_spec.index shr 8) and $0f
+		if ot in [G_BOX,G_IBOX,G_BOXCHAR] then GetColor:=ObjAddr^.ob_spec.index and $f
 		else
 			if ot in [G_TEXT,G_BOXTEXT,G_FTEXT,G_FBOXTEXT] then GetColor:=(ObjAddr^.ob_spec.ted_info^.te_color shr 8) and $0f
 			else
@@ -2215,13 +2406,19 @@ function TControl.GetColor: integer;
 
 
 procedure TControl.Hide(Draw: boolean);
+	var valid: boolean;
+	    ox,oy: integer;
+	    r    : GRECT;
 
 	begin
-		if not(IsHidden) then
+		valid:=not(IsHidden) and Draw;
+		with ObjAddr^ do ob_flags:=ob_flags or HIDETREE;
+		if valid then
 			begin
-				with ObjAddr^ do ob_flags:=ob_flags or HIDETREE;
-				if Draw then
-					Parent^.ObjcPaint(Application^.GetObjectParent(Parent^.DlgTree,ObjIndx),bTst(Flags,wb_Lazy))
+				objc_offset(Parent^.DlgTree,ObjIndx,r.X,r.Y);
+				r.W:=ObjAddr^.ob_width;
+				r.H:=ObjAddr^.ob_height;
+				Parent^.ObjcPaintRect(ROOT,r,bTst(Flags,wb_Lazy))
 			end
 	end;
 
@@ -2229,18 +2426,15 @@ procedure TControl.Hide(Draw: boolean);
 procedure TControl.Unhide;
 
 	begin
-		if IsHidden then
-			begin
-				with ObjAddr^ do ob_flags:=ob_flags and not(HIDETREE);
-				Paint
-			end
+		with ObjAddr^ do ob_flags:=ob_flags and not(HIDETREE);
+		Paint
 	end;
 
 
 function TControl.IsHidden: boolean;
 
 	begin
-		IsHidden:=bTst(ObjAddr^.ob_flags,HIDETREE)
+		IsHidden:=Application^.IsTreeHidden(Parent^.DlgTree,ObjIndx)
 	end;
 
 
@@ -2274,7 +2468,7 @@ procedure TControl.Changed(AnIndx: integer; DblClick: boolean);
 procedure TControl.Paint;
 
 	begin
-		Parent^.ObjcPaint(ObjIndx,bTst(Flags,wb_Lazy))
+		if not(IsHidden) then Parent^.ObjcPaint(ObjIndx,bTst(Flags,wb_Lazy))
 	end;
 
 
@@ -2283,7 +2477,7 @@ function TControl.IsHelpAvailable: boolean;
 	begin
 		if BHelp=nil then IsHelpAvailable:=false
 		else
-			IsHelpAvailable:=(length(StrPTrimF(BHelp^))<>0)
+			IsHelpAvailable:=(length(StrPTrimF(BHelp^))>0)
 	end;
 
 
@@ -2299,6 +2493,19 @@ procedure TControl.SetHelp(Hlp: string);
 	begin
 		DisposeStr(BHelp);
 		BHelp:=NewStr(Hlp)
+	end;
+
+
+function TControl.ExtFocusKey(Stat,Key: integer): boolean;
+
+	begin
+		ExtFocusKey:=false
+	end;
+
+
+procedure TControl.ExtFocusPaint(r: GRECT);
+
+	begin
 	end;
 
 
@@ -2322,6 +2529,7 @@ function TControl.Next: PControl;
 { *** Objekt TBUTTON *** }
 
 constructor TButton.Init(AParent: PDialog; AnIndx,AnID: integer; UserDef: boolean; Hlp: string);
+	var obtype: integer;
 
 	begin
 		if not(inherited Init(AParent,AnIndx,Hlp)) then fail;
@@ -2331,6 +2539,12 @@ constructor TButton.Init(AParent: PDialog; AnIndx,AnID: integer; UserDef: boolea
 				if bTst(ob_flags,DEFAULT) then Style:=Style or bs_DefPushButton;
 				ID:=AnID;
 				UsrDef:=UserDef;
+				obtype:=ob_type and $ff;
+				if (obtype=G_BUTTON) or (obtype=G_STRING) or (obtype=G_TITLE) then TextLen:=StrLen(ob_spec.free_string)+1
+				else
+					if (obtype=G_TEXT) or (obtype=G_BOXTEXT) or (obtype=G_FTEXT) or (obtype=G_FBOXTEXT) then TextLen:=ob_spec.ted_info^.te_txtlen
+					else
+						TextLen:=0;
 				if UsrDef then
 					begin
 						oldflags:=ob_flags;
@@ -2344,9 +2558,12 @@ constructor TButton.Init(AParent: PDialog; AnIndx,AnID: integer; UserDef: boolea
 				if not(UsrDef) then
 					if (ID>=id_OK) and (ID<=id_Esc) then
 						if (ob_type and $ff)=G_BOXTEXT then
-							if Application^.Attr.Colors>=Yellow then
-								with ob_spec.ted_info^ do
-									te_color:=(te_color and $ff00) or $70 or Yellow;
+							begin
+								if Application^.ExtObjects then ob_flags:=ob_flags or FL3DACT
+								else
+									if Application^.Attr.Colors>=Yellow then
+										ob_spec.ted_info^.te_color:=(ob_spec.ted_info^.te_color and $ff00) or $70 or Yellow
+							end;
 				SetText(GetRawText)
 			end
 	end;
@@ -2374,21 +2591,30 @@ function TButton.Install: boolean;
 
 	begin
 		with ObjAddr^ do
-			if (ob_type and $ff)=G_BUTTON then
+			if Application^.ExtObjects then
 				begin
-					UsrBlk.ub_parm:=ob_spec.index;
-					UsrBlk.ub_code:=@DrawPushButton;
-					ob_flags:=(ob_flags and not(RBUTTON or EDITABLE)) or SELECTABLE;
-					ob_state:=ob_state and not(CROSSED or CHECKED or OUTLINED or SHADOWED);
-					ob_type:=G_USERDEF;
-					ob_spec.user_blk:=@UsrBlk;
-					dec(ob_x,5);
-					dec(ob_y,5);
-					inc(ob_width,10);
-					inc(ob_height,10)
+					UsrDef:=false;
+				  ob_type:=G_BUTTON;
+				  ob_flags:=(ob_flags and not(RBUTTON or EDITABLE)) or SELECTABLE or FL3DACT;
+				  ob_state:=ob_state and $00ff;
+				  inc(ob_height)
 				end
 			else
-				UsrDef:=false;
+				if (ob_type and $ff)=G_BUTTON then
+					begin
+						UsrBlk.ub_parm:=ob_spec.index;
+						UsrBlk.ub_code:=@DrawPushButton;
+						ob_flags:=(ob_flags and not(RBUTTON or EDITABLE)) or SELECTABLE;
+						ob_state:=ob_state and not(CROSSED or CHECKED or OUTLINED or SHADOWED);
+						ob_type:=G_USERDEF;
+						ob_spec.user_blk:=@UsrBlk;
+						dec(ob_x,5);
+						dec(ob_y,5);
+						inc(ob_width,10);
+						inc(ob_height,10)
+					end
+				else
+					UsrDef:=false;
 		Install:=true
 	end;
 
@@ -2397,31 +2623,54 @@ procedure TButton.Deinstall;
 
 	begin
 		with ObjAddr^ do
-			begin
-				inc(ob_x,5);
-				inc(ob_y,5);
-				dec(ob_width,10);
-				dec(ob_height,10)
-			end
+			if Application^.ExtObjects then dec(ob_height)
+			else
+				begin
+					inc(ob_x,5);
+					inc(ob_y,5);
+					dec(ob_width,10);
+					dec(ob_height,10)
+				end
+	end;
+
+
+procedure TButton.SetShortCut(Key: char);
+	var idx: integer;
+
+	begin
+		inherited SetShortCut(Key);
+		if Application^.ExtObjects and not(UsrDef) then
+			with ObjAddr^ do
+				begin
+					if Key=#0 then ob_state:=ob_state and $00ff
+					else
+						begin
+							idx:=pos(upcase(Key),StrPUpper(GetText));
+							if (idx=0) or (idx>8) then ob_state:=ob_state and $00ff
+							else
+								ob_state:=(ob_state and $00ff) or WHITEBAK or ((idx-1) shl 8)
+						end
+				end
 	end;
 
 
 procedure TButton.SetText(ATextString: string);
 	var typ,scpos: integer;
 	    adr      : PChar;
+	    scchar   : char;
 
 	begin
 		adr:=nil;
+		scchar:=#0;
+		if length(ATextString)>=TextLen then ATextString:=StrPLeft(ATextString,TextLen-1);
 		typ:=ObjAddr^.ob_type and $ff;
 		scpos:=pos('&',ATextString);
 		if (scpos>0) and (scpos<length(ATextString)) then
 			begin
-				SetShortCut(ATextString[scpos+1]);
+				scchar:=ATextString[scpos+1];
 				if not(UsrDef) then
 					ATextString:=StrPLeft(ATextString,scpos-1)+StrPRight(ATextString,length(ATextString)-scpos)
-			end
-		else
-			SetShortCut(#0);
+			end;
 		if UsrDef then adr:=PChar(UsrBlk.ub_parm)
 		else
 			if (typ=G_BUTTON) or (typ=G_STRING) or (typ=G_TITLE) then
@@ -2430,6 +2679,7 @@ procedure TButton.SetText(ATextString: string);
 		else
 			if (typ=G_TEXT) or (typ=G_BOXTEXT) or (typ=G_FTEXT) or (typ=G_FBOXTEXT) then
 				StrPCopy(ObjAddr^.ob_spec.ted_info^.te_ptext,ATextString);
+		SetShortCut(scchar);
 		Paint
 	end;
 
@@ -2479,6 +2729,7 @@ constructor TStatic.Init(AParent: PDialog; AnIndx,ATextLen: integer; UserDef: bo
 	begin
 		if not(inherited Init(AParent,AnIndx,Hlp)) then fail;
 		Style:=cs_Static or sts_Fill;
+		firstchar:=false;
 		UsrDef:=false;
 		usrused:=false;
 		TextLen:=ATextLen;
@@ -2487,23 +2738,36 @@ constructor TStatic.Init(AParent: PDialog; AnIndx,ATextLen: integer; UserDef: bo
 			begin
 				oldtype:=ob_type and $ff;
 				oldflags:=ob_flags;
-				ob_flags:=ob_flags and not(RBUTTON or EDITABLE or SELECTABLE or DEFAULT or F_EXIT or TOUCHEXIT);
+				ob_flags:=ob_flags and not(RBUTTON or EDITABLE);
 				if (oldtype=G_BUTTON) or (oldtype=G_STRING) or (oldtype=G_TITLE) then
 					begin
-						if TextLen<0 then TextLen:=0;
+						if TextLen<0 then TextLen:=256;
+						if TextLen>StrLen(ObjAddr^.ob_spec.free_string)+1 then TextLen:=StrLen(ObjAddr^.ob_spec.free_string)+1;
 						UsrBlk.ub_parm:=ob_spec.index;
 						if UserDef=true then
 							begin
-								UsrDef:=true;
-								UsrBlk.ub_code:=@DrawTitle
+								if Application^.ExtObjects then
+									begin
+									  ob_type:=G_STRING;
+									  ob_flags:=ob_flags or FL3DACT;
+									  ob_state:=ob_state or WHITEBAK or UNDERLINE or XSTATE;
+										inc(ob_height,3)
+									end
+								else
+									begin
+										UsrDef:=true;
+										UsrBlk.ub_code:=@DrawTitle;
+										ob_type:=G_USERDEF;
+										ob_spec.user_blk:=@UsrBlk
+									end
 							end
 						else
 							begin
 								usrused:=true;
-								UsrBlk.ub_code:=@DrawStatic
-							end;
-						ob_type:=G_USERDEF;
-						ob_spec.user_blk:=@UsrBlk
+								UsrBlk.ub_code:=@DrawStatic;
+								ob_type:=G_USERDEF;
+								ob_spec.user_blk:=@UsrBlk
+							end
 					end
 				else
 					if (oldtype<>G_TEXT) and (oldtype<>G_BOXTEXT) and (oldtype<>G_FTEXT) and (oldtype<>G_FBOXTEXT) then
@@ -2538,7 +2802,6 @@ destructor TStatic.Done;
 
 
 function TStatic.Transfer(DataPtr: pointer; TransferFlag: word): word;
-	var txt: string;
 
 	begin
 		case TransferFlag of
@@ -2551,13 +2814,31 @@ function TStatic.Transfer(DataPtr: pointer; TransferFlag: word): word;
 	end;
 
 
+procedure TStatic.Paint;
+	var r: GRECT;
+
+	begin
+		if (ObjAddr^.ob_type and $ff)=G_STRING then
+			begin
+				if not(IsHidden) then
+					begin
+						objc_offset(Parent^.DlgTree,ObjIndx,r.X,r.Y);
+						r.W:=ObjAddr^.ob_width;
+						r.H:=ObjAddr^.ob_height;
+						Parent^.ObjcPaintRect(ROOT,r,bTst(Flags,wb_Lazy))
+					end
+			end
+		else
+			inherited Paint
+	end;
+
+
 procedure TStatic.SetText(ATextString: string);
 	var adr: PChar;
 
 	begin
 		adr:=nil;
-		if length(ATextString)>=TextLen then
-			ATextString:=StrPLeft(ATextString,TextLen-1)
+		if length(ATextString)>=TextLen then ATextString:=StrPLeft(ATextString,TextLen-1)
 		else
 			if bTst(Style,sts_Fill) then
 				ATextString:=ATextString+StrPSpace(TextLen-length(ATextString)-1);
@@ -2569,11 +2850,12 @@ procedure TStatic.SetText(ATextString: string);
 		else
 			begin
 				if ATextString[1]='@' then
-					begin
-						if bTst(Style,sts_Fill) then ATextString:=StrPSpace(TextLen-1)
-						else
-							ATextString:=''
-					end;
+					if firstchar then
+						begin
+							if bTst(Style,sts_Fill) then ATextString:=StrPSpace(TextLen-1)
+							else
+								ATextString:=''
+						end;
 				StrPCopy(ObjAddr^.ob_spec.ted_info^.te_ptext,ATextString)
 			end;
 		Paint
@@ -2591,7 +2873,8 @@ function TStatic.GetText: string;
 			else
 				begin
 					txt:=StrPas(ObjAddr^.ob_spec.ted_info^.te_ptext);
-					if txt[1]='@' then txt:=''
+					if txt[1]='@' then
+						if firstchar then txt:=''
 				end;
 		GetText:=StrPLeft(txt,TextLen-1)
 	end;
@@ -2647,7 +2930,11 @@ constructor TEdit.Init(AParent: PDialog; AnIndx,ATextLen: integer; Hlp: string);
 			end;
 		with ObjAddr^ do
 			begin
-				ob_flags:=ob_flags or EDITABLE;
+				if Application^.Attr.Colors<LBlack then ob_flags:=ob_flags or EDITABLE
+				else
+					if bTst(ob_state,DISABLED) then colDisable
+					else
+						colEnable;
 				if bTst(Application^.Attr.Style,as_3DFlags) then ob_flags:=ob_flags or FL3DBAK
 				else
 					ob_flags:=ob_flags and not(FL3DBAK)
@@ -2673,33 +2960,49 @@ destructor TEdit.Done;
 	end;
 
 
+function TEdit.GetState: integer;
+
+	begin
+		if bTst(ObjAddr^.ob_state,DISABLED) or not(bTst(ObjAddr^.ob_flags,EDITABLE)) then GetState:=bf_Disabled
+		else
+			GetState:=bf_Enabled
+	end;
+
+
 procedure TEdit.SetState(StateFlag: integer);
-	var dummy: integer;
-	    valid: boolean;
+	var dummy       : integer;
+	    valid,valid2: boolean;
 
 	begin
 		valid:=(StateFlag=bf_Disabled) and (GetState<>StateFlag) and not(Parent^.obedflag) and (Parent^.GetFocus=ObjIndx);
+		valid2:=(StateFlag=bf_Enabled) and (GetState<>StateFlag) and (Parent^.edit_obj<=0);
 		if valid then
 			begin
-				Parent^.objc_edit(dummy,EDEND,Parent^.Work.A2,true);
+				Parent^.objc_edit(dummy,EDEND,K_NORMAL,Parent^.Work.A2,true);
 				Parent^.edit_obj:=0
 			end;
-		inherited SetState(StateFlag);
-		if valid then Parent^.InitFocus
+		if Application^.Attr.Colors<LBlack then inherited SetState(StateFlag)
+		else
+			if GetState<>StateFlag then
+				begin
+					if StateFlag=bf_Disabled then colDisable
+					else
+						colEnable;
+					Paint
+				end;
+		if valid or valid2 then Parent^.InitFocus
 	end;
 
 
 procedure TEdit.SetText(ATextString: string);
 	var dummy: integer;
+	    valid: boolean;
 
 	begin
-		if not(Parent^.obedflag) then
-			if Parent^.GetFocus=ObjIndx then
-				Parent^.objc_edit(dummy,EDEND,Parent^.Work.A2,true);
+		valid:=Parent^.HasActiveFocus(ObjIndx);
+		if valid then Parent^.objc_edit(dummy,EDEND,K_NORMAL,Parent^.Work.A2,true);
 		inherited SetText(ATextString);
-		if not(Parent^.obedflag) then
-			if Parent^.GetFocus=ObjIndx then
-				Parent^.objc_edit(dummy,EDINIT,Parent^.Work.A2,true);
+		if valid then Parent^.objc_edit(dummy,EDINIT,K_NORMAL,Parent^.Work.A2,true);
 		ChrDispose(UPtr);
 		UPtr:=TPtr;
 		TPtr:=ChrNew(GetText);
@@ -2709,43 +3012,37 @@ procedure TEdit.SetText(ATextString: string);
 
 procedure TEdit.SetColor(Color: integer);
 	var dummy: integer;
+	    valid: boolean;
 
 	begin
-		if not(Parent^.obedflag) then
-			if Parent^.GetFocus=ObjIndx then
-				Parent^.objc_edit(dummy,EDEND,Parent^.Work.A2,true);
+		valid:=Parent^.HasActiveFocus(ObjIndx);
+		if valid then Parent^.objc_edit(dummy,EDEND,K_NORMAL,Parent^.Work.A2,true);
 		inherited SetColor(Color);
-		if not(Parent^.obedflag) then
-			if Parent^.GetFocus=ObjIndx then
-				Parent^.objc_edit(dummy,EDINIT,Parent^.Work.A2,true)
+		if valid then Parent^.objc_edit(dummy,EDINIT,K_NORMAL,Parent^.Work.A2,true)
 	end;
 
 
 procedure TEdit.Paint;
 	var dummy: integer;
+	    valid: boolean;
 
 	begin
-		if not(Parent^.obedflag) then
-			if Parent^.GetFocus=ObjIndx then
-				Parent^.objc_edit(dummy,EDEND,Parent^.Work.A2,true);
+		valid:=Parent^.HasActiveFocus(ObjIndx);
+		if valid then Parent^.objc_edit(dummy,EDEND,K_NORMAL,Parent^.Work.A2,true);
 		inherited Paint;
-		if not(Parent^.obedflag) then
-			if Parent^.GetFocus=ObjIndx then
-				Parent^.objc_edit(dummy,EDINIT,Parent^.Work.A2,true)
+		if valid then Parent^.objc_edit(dummy,EDINIT,K_NORMAL,Parent^.Work.A2,true)
 	end;
 
 
 procedure TEdit.Clear;
 	var dummy: integer;
+	    valid: boolean;
 
 	begin
-		if not(Parent^.obedflag) then
-			if Parent^.GetFocus=ObjIndx then
-				Parent^.objc_edit(dummy,EDEND,Parent^.Work.A2,true);
+		valid:=Parent^.HasActiveFocus(ObjIndx);
+		if valid then Parent^.objc_edit(dummy,EDEND,K_NORMAL,Parent^.Work.A2,true);
 		inherited Clear;
-		if not(Parent^.obedflag) then
-			if Parent^.GetFocus=ObjIndx then
-				Parent^.objc_edit(dummy,EDINIT,Parent^.Work.A2,true)
+		if valid then Parent^.objc_edit(dummy,EDINIT,K_NORMAL,Parent^.Work.A2,true)
 	end;
 
 
@@ -2816,53 +3113,62 @@ function TEdit.CanUndo: boolean;
 procedure TEdit.Undo;
 
 	begin
-		if UPtr<>nil then SetText(StrLPas(UPtr,TextLen-1))
+		if CanUndo then SetText(StrLPas(UPtr,TextLen-1))
 	end;
 
 
 procedure TEdit.Paste;
-	var f        : text;
-	    txt      : string;
-	    q,key,cnt: integer;
+	var buf  : array [0..255] of char;
+	    hdl,q,
+	    cnt  : integer;
+	    res  : longint;
 
 	begin
 		if Clipboard=nil then exit;
 		with Clipboard^ do
 			begin
 				if not(OpenClipboard(false)) then exit;
-				txt:='';
-				if IsClipboardFormatAvailable('TXT') then
+				if IsClipboardFormatAvailable('txt') then
 					begin
-						assign(f,GetClipboardFilename+'TXT');
-						reset(f);
-						readln(f,txt);
-						close(f)
-					end;
+						res:=fopen(GetClipboardFilename+'txt',FO_READ);
+						if res>=0 then
+							begin
+								hdl:=integer(res);
+								res:=fread(hdl,256,@buf);
+								fclose(hdl)
+							end
+					end
+				else
+					res:=-1;
 				CloseClipboard
 			end;
-		if length(txt)=0 then exit;
+		if res<=0 then exit;
 		cnt:=TextLen-1;
 		if cnt<1 then exit;
 		wind_update(BEG_UPDATE);
 		HideMouse;
-		for q:=1 to length(txt) do
-			if not(txt[q] in [#8,#9,#10,#13,#27]) then
-				begin
-					key:=ord(txt[q]);
-					Parent^.objc_edit(key,EDCHAR,Parent^.Work.A2,true);
-					if key=0 then
-						begin
-							dec(cnt);
-							if cnt=0 then break
-						end
-				end;
+		q:=0;
+		while q<res do
+			begin
+				if not(buf[q] in [#8,#9,#10,#13,#27]) then
+					begin
+						if Parent^.InsertChar(buf[q]) then
+							begin
+								dec(cnt);
+								if cnt=0 then break
+							end
+					end;
+				inc(q)
+			end;
 		ShowMouse;
 		wind_update(END_UPDATE)
 	end;
 
 
 procedure TEdit.Copy;
-	var f: text;
+	var buf: array [0..257] of char;
+	    hdl: integer;
+	    res: longint;
 
 	begin
 		if Clipboard=nil then exit;
@@ -2870,13 +3176,15 @@ procedure TEdit.Copy;
 		with Clipboard^ do
 			begin
 				if not(OpenClipboard(true)) then exit;
-				assign(f,GetClipboardFilename+'TXT');
-				rewrite(f);
-				if ioresult=0 then
+				StrPCopy(buf,GetText);
+				StrCat(buf,#13#10);
+				res:=fcreate(GetClipboardFilename+'txt',0);
+				if res>=0 then
 					begin
-						writeln(f,GetText);
-						close(f);
-						SetClipboardFormat(SCF_TEXT,'.TXT')
+						hdl:=integer(res);
+						fwrite(hdl,StrLen(buf),@buf);
+						fclose(hdl);
+						SetClipboardFormat(SCF_TEXT,'.txt')
 					end;
 				CloseClipboard
 			end
@@ -2884,7 +3192,9 @@ procedure TEdit.Copy;
 
 
 procedure TEdit.Cut;
-	var f: text;
+	var buf: array [0..257] of char;
+	    hdl: integer;
+	    res: longint;
 
 	begin
 		if Clipboard=nil then exit;
@@ -2892,14 +3202,15 @@ procedure TEdit.Cut;
 		with Clipboard^ do
 			begin
 				if not(OpenClipboard(true)) then exit;
-				assign(f,GetClipboardFilename+'TXT');
-				rewrite(f);
-				if ioresult=0 then
+				StrPCopy(buf,GetText);
+				StrCat(buf,#13#10);
+				res:=fcreate(GetClipboardFilename+'txt',0);
+				if res>=0 then
 					begin
-						writeln(f,GetText);
-						close(f);
-						if ioresult=0 then Clear;
-						SetClipboardFormat(SCF_TEXT,'.TXT')
+						hdl:=integer(res);
+						if fwrite(hdl,StrLen(buf),@buf)=StrLen(buf) then Clear;
+						fclose(hdl);
+						SetClipboardFormat(SCF_TEXT,'.txt')
 					end;
 				CloseClipboard
 			end
@@ -2946,7 +3257,10 @@ procedure TEdit.SetCursor(CPos: integer);
 		with Parent^ do
 			if GetFocus=ObjIndx then
 				if Attr.Status=ws_Open then
-					objc_edit(EdIdx,EDIDXABS,Work.A2,true)
+					begin
+						maxidx:=EdIdx;
+						objc_edit(maxidx,EDIDXABS,K_NORMAL,Work.A2,true)
+					end
 	end;
 
 
@@ -2963,28 +3277,48 @@ function TEdit.GetClipboard: PClipboard;
 		GetClipboard:=Parent^.Clipboard
 	end;
 
+
+	{ private }
+
+
+procedure TEdit.colEnable;
+
+	begin
+		with ObjAddr^ do
+			begin
+				ob_state:=ob_state and not(DISABLED);
+				ob_flags:=ob_flags or EDITABLE;
+				ob_spec.ted_info^.te_color:=(ob_spec.ted_info^.te_color and $f000) or (Black shl 8) or 128
+			end
+	end;
+
+
+procedure TEdit.colDisable;
+
+	begin
+		with ObjAddr^ do
+			begin
+				ob_state:=ob_state and not(DISABLED);
+				ob_flags:=ob_flags and not(EDITABLE);
+				ob_spec.ted_info^.te_color:=(ob_spec.ted_info^.te_color and $f000) or (LBlack shl 8) or (7 shl 4) or LWhite
+			end
+	end;
+
 { *** TEDIT *** }
 
 
 
 { *** Objekt TPOPUP *** }
 
-constructor TPopup.Init(AParent: PEventObject; tIndx,oIndx: integer);
+constructor TPopup.Init(AParent: PEventObject; tIndx,oIndx,stIndx: integer);
 	var tp,ntp: PTree;
 	    q     : integer;
 
 	begin
 		if not(inherited Init(AParent)) then fail;
-		Style:=Style or es_Popup;
-		shadow:=true;
-		wait0:=true;
-		active:=false;
-		popsize:=0;
-		pFlag:=POP_LEFTOP;
+		commoninit;
 		pIndex:=oIndx;
-		PopTree:=nil;
-		pX:=0;
-		pY:=0;
+		pStart:=stIndx;
 		if pIndex<ROOT then
 			begin
 				inherited Done;
@@ -3012,6 +3346,7 @@ constructor TPopup.Init(AParent: PEventObject; tIndx,oIndx: integer);
 									end;
 								with ntp^[popsize-1] do ob_flags:=ob_flags or LASTOB;
 								pIndex:=ROOT;
+								dec(pStart,oIndx);
 								SetPopTree(ntp)
 							end
 					end;
@@ -3024,51 +3359,182 @@ constructor TPopup.Init(AParent: PEventObject; tIndx,oIndx: integer);
 	end;
 
 
+constructor TPopup.InitCollection(AParent: PEventObject; ACollection: PStringCollection; DisposeColl: boolean; MinColumns: integer);
+
+	begin
+		if not(inherited Init(AParent)) then fail;
+		commoninit;
+		mincols:=MinColumns;
+		SetCollection(ACollection);
+		lstdspose:=DisposeColl;
+		if (PopTree=nil) or (List=nil) then
+			begin
+				inherited Done;
+				fail
+			end
+	end;
+
+
 destructor TPopup.Done;
 
 	begin
-		if PopTree<>nil then
-			if popsize>0 then freemem(PopTree,popsize*sizeof(AESOBJECT));
+		if lstdspose then
+			if List<>nil then dispose(List,Done);
+		ChrDispose(emptylist);
+		FreePopTree;
 		inherited Done
 	end;
 
 
 procedure TPopup.SetPopTree(tree: PTree);
-	var valid: boolean;
-	    q    : integer;
 
 	begin
 		PopTree:=tree;
 		if PopTree=nil then exit;
-		pMax:=PopTree^[pIndex].ob_tail+1-PopTree^[pIndex].ob_head;
-		pRows:=pMax;
-		if pRows>POP_MAXROWS then valid:=false
-		else
-			if (PopTree^[pIndex].ob_type and $ff)<>G_BOX then valid:=false
-			else
+		if pStart<0 then pStart:=pIndex;
+		pRows:=PopTree^[pStart].ob_tail+1-PopTree^[pStart].ob_head;
+		if (pRows>POP_MAXROWS) or ((PopTree^[pIndex].ob_type and $ff)<>G_BOX) then PopTree:=nil
+	end;
+
+
+procedure TPopup.FreePopTree;
+
+	begin
+		if PopTree<>nil then
+			if popsize>0 then freemem(PopTree,popsize*sizeof(AESOBJECT));
+		PopTree:=nil;
+		popsize:=0
+	end;
+
+
+procedure TPopup.SetCollection(ACollection: PStringCollection);
+	const alertref: array [0..6] of AESOBJECT =
+					((ob_next:-1;ob_head:1;ob_tail:4;ob_type:G_BOX;ob_flags:NONE;ob_state:NORMAL;ob_spec:(index:$ff1000);ob_x:0;ob_y:0;ob_width:0;ob_height:0),
+					 (ob_next:2;ob_head:6;ob_tail:0;ob_type:G_BOX;ob_flags:NONE;ob_state:NORMAL;ob_spec:(index:0);ob_x:0;ob_y:0;ob_width:0;ob_height:0),
+					 (ob_next:3;ob_head:-1;ob_tail:-1;ob_type:G_BOXCHAR;ob_flags:NONE;ob_state:NORMAL;ob_spec:(index:$01ff1100);ob_x:0;ob_y:0;ob_width:2;ob_height:1),
+					 (ob_next:4;ob_head:5;ob_tail:5;ob_type:G_BOX;ob_flags:NONE;ob_state:NORMAL;ob_spec:(index:$ff1011);ob_x:0;ob_y:1;ob_width:2;ob_height:0),
+					 (ob_next:ROOT;ob_head:-1;ob_tail:-1;ob_type:G_BOXCHAR;ob_flags:NONE;ob_state:NORMAL;ob_spec:(index:$02ff1100);ob_x:0;ob_y:0;ob_width:2;ob_height:1),
+					 (ob_next:3;ob_head:-1;ob_tail:-1;ob_type:G_BOX;ob_flags:NONE;ob_state:NORMAL;ob_spec:(index:$ff1000);ob_x:0;ob_y:0;ob_width:2;ob_height:1),
+					 (ob_next:1;ob_head:-1;ob_tail:-1;ob_type:G_STRING;ob_flags:NONE;ob_state:NORMAL;ob_spec:(free_string:nil);ob_x:0;ob_y:0;ob_width:0;ob_height:1));
+
+				ABACKBOX = 0;
+				ALISTBOX = 1;
+				AUPARROW = 2;
+				ASLIDER  = 3;
+				ADNARROW = 4;
+				ASLIDBOX = 5;
+				ASTRING  = 6;
+
+	var ntp       : PTree;
+	    q,
+	    maxcolumns,
+	    maxrows   : longint;
+
+	begin
+		if ACollection=nil then exit;
+		FreePopTree;
+		List:=ACollection;
+		maxcolumns:=0;
+		q:=0;
+		with List^ do
+			while q<Count do
 				begin
-					valid:=true;
-					for q:=PopTree^[pIndex].ob_head to PopTree^[pIndex].ob_tail do
-						if not((PopTree^[q].ob_type and $ff) in [G_STRING,G_USERDEF]) then
-							begin
-								valid:=false;
-								break
-							end
+					if length(PString(KeyOf(At(q)))^)>maxcolumns then maxcolumns:=length(PString(KeyOf(At(q)))^);
+					inc(q)
 				end;
-		if not(valid) then PopTree:=nil
+		dec(maxcolumns);
+		maxrows:=List^.Count;
+		pIndex:=ROOT;
+		pStart:=pIndex+1;
+		AutoCheck:=true;
+		CheckMark:=id_No;
+		listoffs:=0;
+		if MaxRows<3 then MaxRows:=3;
+		if MaxRows>POP_MAXROWS then MaxRows:=POP_MAXROWS;
+		if MaxColumns<Max(4,mincols) then MaxColumns:=Max(4,mincols);
+		if MaxColumns>78 then MaxColumns:=78;
+		popsize:=6+MaxRows;
+		getmem(ntp,popsize*sizeof(AESOBJECT));
+		if ntp<>nil then
+			begin
+				ntp^[ROOT]:=alertref[ABACKBOX];
+				with ntp^[ROOT] do
+					begin
+						ob_width:=MaxColumns+2;
+						ob_height:=MaxRows
+					end;
+				ntp^[1]:=alertref[ALISTBOX];
+				with ntp^[1] do
+					begin
+						ob_width:=MaxColumns;
+						ob_height:=MaxRows;
+						ob_tail:=popsize-1
+					end;
+				ntp^[2]:=alertref[AUPARROW];
+				ntp^[2].ob_x:=MaxColumns;
+				ntp^[3]:=alertref[ASLIDER];
+				with ntp^[3] do
+					begin
+						ob_x:=MaxColumns;
+						ob_height:=MaxRows-2
+					end;
+				ntp^[4]:=alertref[ADNARROW];
+				with ntp^[4] do
+					begin
+						ob_x:=MaxColumns;
+						ob_y:=MaxRows-1
+					end;
+				ntp^[5]:=alertref[ASLIDBOX];
+				for q:=6 to popsize-1 do
+					begin
+						ntp^[q]:=alertref[ASTRING];
+						with ntp^[q] do
+							begin
+								ob_width:=MaxColumns;
+								ob_y:=q-6;
+								if q<popsize-1 then ob_next:=q+1
+								else
+									ob_flags:=ob_flags or LASTOB
+							end
+					end;
+				for q:=ROOT to popsize-1 do rsrc_obfix(ntp,q);
+				inc(ntp^[ROOT].ob_width);
+				dec(ntp^[3].ob_height);
+				for q:=2 to 4 do inc(ntp^[q].ob_x);
+				with ntp^[5] do
+					begin
+						if List^.Count<=MaxRows then ob_height:=ntp^[3].ob_height
+						else
+							ob_height:=round((ntp^[3].ob_height*MaxRows)/List^.Count)
+					end;
+				SetPopTree(ntp);
+				if PopTree<>nil then filllist(false,0)
+			end
+	end;
+
+
+function TPopup.pMax: integer;
+
+	begin
+		if List=nil then pMax:=pRows
+		else
+			pMax:=List^.Count
 	end;
 
 
 function TPopup.Execute: integer;
-	label _error,_upagain,_dnagain,_raus;
+	label _error,_upagain,_dnagain,_raus,_again,_home,_shifthome;
 
 	var scrn,memr    : MFDB;
 	    q,mx,my,ms,mc,
 	    evnt,key,rt,
 	    wflag,wx,wy,
-	    ww,wh,kstat  : integer;
+	    ww,wh,kstat,
+	    oldobj,oldms,
+	    execte       : integer;
 	    blen,ql      : longint;
 	    qp           : pointer;
+	    autoscroll,
 	    qused,valid  : boolean;
 	    pipe         : Pipearray;
 	    vrec         : ARRAY_4;
@@ -3081,35 +3547,65 @@ function TPopup.Execute: integer;
 	                       1: (b41,b42: ARRAY_4)
 	                   end;
 
+	procedure objunselect;
+
+		begin
+			if obj>0 then
+				begin
+					PopTree^[obj].ob_state:=PopTree^[obj].ob_state and not(SELECTED);
+					objc_offset(PopTree,obj,vrec[0],vrec[1]);
+					vrec[2]:=vrec[0]+PopTree^[obj].ob_width-1;
+					vrec[3]:=vrec[1]+PopTree^[obj].ob_height-1;
+					HideMouse;
+					vsf_interior(Application^.vdiHandle,FIS_SOLID);
+					vsf_color(Application^.vdiHandle,PopTree^[pIndex].ob_spec.index and $0000000f);
+					vr_recfl(Application^.vdiHandle,vrec);
+					vsf_interior(Application^.vdiHandle,FIS_HOLLOW);
+					vsf_color(Application^.vdiHandle,Black);
+					objc_draw(PopTree,obj,MAX_DEPTH,SysInfo.Desktop.X,SysInfo.Desktop.Y,SysInfo.Desktop.W,SysInfo.Desktop.H);
+					ShowMouse
+				end;
+			autoscroll:=true;
+			obj:=id_No
+		end;
+
 	begin
 		Execute:=id_No;
 		if PopTree=nil then exit;
 		wind_update(BEG_UPDATE);
 		wind_update(BEG_MCTRL);
+		execte:=id_No;
 		active:=true;
-		gem.graf_mouse(ARROW,nil);
+		graf_mouse(ARROW,nil);
 		mnusr.ub_parm:=0;
 		mnusr.ub_code:=@DrawMenuRect;
-		for q:=PopTree^[pIndex].ob_head to PopTree^[pIndex].ob_tail do
+		for q:=PopTree^[pStart].ob_head to PopTree^[pStart].ob_tail do
 			begin
-				PopTree^[q].ob_flags:=SELECTABLE;
+				PopTree^[q].ob_flags:=PopTree^[q].ob_flags or SELECTABLE;
 				PopTree^[q].ob_state:=PopTree^[q].ob_state and (DISABLED or CHECKED);
-				spec[q-PopTree^[pIndex].ob_head]:=PopTree^[q].ob_spec;
-				typ[q-PopTree^[pIndex].ob_head]:=PopTree^[q].ob_type;
+				spec[q-PopTree^[pStart].ob_head]:=PopTree^[q].ob_spec;
+				typ[q-PopTree^[pStart].ob_head]:=PopTree^[q].ob_type;
 				if bTst(PopTree^[q].ob_state,DISABLED) then
-					begin
-						valid:=((PopTree^[q].ob_type and $ff)=G_USERDEF);
-						if not valid then valid:=(PChar(PopTree^[q].ob_spec.free_string)^='-');
-						if valid then
-							begin
-								PopTree^[q].ob_type:=G_USERDEF;
-								PopTree^[q].ob_spec.user_blk:=@mnusr
-							end
-					end
+					if StrPLeft(GetText(q-PopTree^[pStart].ob_head),1)='-' then
+						begin
+							if not(agi.SysNiceline) or not(Application^.NAESActive) then
+								begin
+									PopTree^[q].ob_type:=G_USERDEF;
+									PopTree^[q].ob_spec.user_blk:=@mnusr;
+								end;
+							continue;
+						end;
+				if (PopTree^[q].ob_type and $ff)=G_STRING then
+					if agi.GShortcut and (List=nil) then PopTree^[q].ob_type:=G_SHORTCUT;
+			end;
+		with PopTree^[ROOT] do
+			begin
+				ob_x:=0;
+				ob_y:=0;
 			end;
 		with PopTree^[pIndex] do
 			begin
-				if shadow then ob_state:=SHADOWED
+				if Shadow then ob_state:=SHADOWED
 				else
 					ob_state:=NORMAL;
 				ob_x:=pX;
@@ -3161,44 +3657,39 @@ function TPopup.Execute: integer;
 		pxy.b8[6]:=memr.fd_w-1;
 		pxy.b8[7]:=memr.fd_h-1;
 		vro_cpyfm(Application^.vdiHandle,S_ONLY,pxy.b8,scrn,memr);
+		checkoffs;
+		if List<>nil then filllist(false,0);
+		if AutoCheck then Check(CheckMark);
 		objc_draw(PopTree,pIndex,MAX_DEPTH,SysInfo.Desktop.X,SysInfo.Desktop.Y,SysInfo.Desktop.W,SysInfo.Desktop.H);
 		ShowMouse;
 		obj:=id_No;
 		evnt_timer(10,0);
 		graf_mkstate(mx,my,mc,q);
+		if bTst(mc,2) then
+			repeat
+				graf_mkstate(mx,my,mc,q)
+			until (mc and 3)=0;
 		mc:=mc and 1;
 		wflag:=0;
-		with PopTree^[pIndex] do
+		autoscroll:=false;
+		objc_offset(PopTree,pStart,wx,wy);
+		with PopTree^[pStart] do
 			begin
-				wx:=ob_x;
-				wy:=ob_y;
 				ww:=ob_width;
 				wh:=ob_height
 			end;
+		_again:
 		repeat
 			q:=objc_find(PopTree,pIndex,MAX_DEPTH,mx,my);
-			if (q<>obj) and (q<>pIndex) then
+			if q<>obj then
 				begin
-					if obj>0 then
-						begin
-							PopTree^[obj].ob_state:=PopTree^[obj].ob_state and not(SELECTED);
-							vrec[0]:=PopTree^[obj].ob_x+PopTree^[pIndex].ob_x;
-							vrec[1]:=PopTree^[obj].ob_y+PopTree^[pIndex].ob_y;
-							vrec[2]:=vrec[0]+PopTree^[obj].ob_width-1;
-							vrec[3]:=vrec[1]+PopTree^[obj].ob_height-1;
-							HideMouse;
-							vr_recfl(Application^.vdiHandle,vrec);
-							objc_draw(PopTree,obj,MAX_DEPTH,SysInfo.Desktop.X,SysInfo.Desktop.Y,SysInfo.Desktop.W,SysInfo.Desktop.H);
-							ShowMouse
-						end;
-					obj:=id_No;
-					if q<=0 then
+					objunselect;
+					if not(Between(q,PopTree^[pStart].ob_head,PopTree^[pStart].ob_tail)) then
 						begin
 							wflag:=0;
-							with PopTree^[pIndex] do
+							objc_offset(PopTree,pStart,wx,wy);
+							with PopTree^[pStart] do
 								begin
-									wx:=ob_x;
-									wy:=ob_y;
 									ww:=ob_width;
 									wh:=ob_height
 								end
@@ -3212,10 +3703,9 @@ function TPopup.Execute: integer;
 								objc_draw(PopTree,obj,MAX_DEPTH,SysInfo.Desktop.X,SysInfo.Desktop.Y,SysInfo.Desktop.W,SysInfo.Desktop.H);
 								ShowMouse;
 								wflag:=1;
+								objc_offset(PopTree,obj,wx,wy);
 								with PopTree^[obj] do
 									begin
-										wx:=ob_x+PopTree^[pIndex].ob_x;
-										wy:=ob_y+PopTree^[pIndex].ob_y;
 										ww:=ob_width;
 										wh:=ob_height
 									end
@@ -3223,25 +3713,49 @@ function TPopup.Execute: integer;
 						else
 							begin
 								wflag:=1;
+								objc_offset(PopTree,q,wx,wy);
 								with PopTree^[q] do
 									begin
-										wx:=ob_x+PopTree^[pIndex].ob_x;
-										wy:=ob_y+PopTree^[pIndex].ob_y;
 										ww:=ob_width;
 										wh:=ob_height
 									end
 							end
 				end;
-			if q=-1 then
+			if not(Between(q,PopTree^[pStart].ob_head,PopTree^[pStart].ob_tail)) then
 				begin
-					rt:=ExitPop(mx,my);
+					oldobj:=q;
+					rt:=ExitPop(oldobj,mx,my);
 					if rt<>id_No then
 						begin
-							Execute:=rt;
+							execte:=rt;
 							goto _raus
 						end
-				end;
+				end
+			else
+				oldobj:=-1;
 			evnt:=evnt_multi(MU_KEYBD or MU_TIMER or MU_BUTTON or MU_M1,257,3,0,wflag,wx,wy,ww,wh,0,0,0,0,0,pipe,poptimer,0,mx,my,ms,kstat,key,q);
+			if not(bTst(evnt,MU_BUTTON)) then
+				begin
+					graf_mkstate(q,q,ms,q);
+					if List<>nil then
+						if autoscroll then
+							begin
+								if my<PopTree^[pIndex].ob_y then
+									begin
+										objunselect;
+										ClickExit(2,mx,my,1);
+										evnt_timer(50,0)
+									end
+								else
+									if my>=(PopTree^[pIndex].ob_y+PopTree^[pIndex].ob_height) then
+										begin
+											objunselect;
+											ClickExit(4,mx,my,1);
+											evnt_timer(50,0)
+										end
+							end
+				end;
+			oldms:=ms;
 			if bTst(ms,2) then
 				begin
 					evnt:=MU_KEYBD;
@@ -3249,27 +3763,59 @@ function TPopup.Execute: integer;
 				end;
 			if bTst(evnt,MU_KEYBD) then
 				begin
+					if lfrtcrs then
+						case key of
+						Cur_Left:
+							key:=Cur_Up;
+						Cur_Right:
+							key:=Cur_Down
+						end;
 					case key of
-					Home,Shift_CU:
-						if isanyenabled then
-							begin
-								q:=0;
-								while GetState(q)=bf_Disabled do inc(q);
-								MouseSim(q)
-							end;
-					Shift_Home,Shift_CD:
-						if isanyenabled then
-							begin
-								q:=pRows-1;
-								while GetState(q)=bf_Disabled do dec(q);
-								MouseSim(q)
-							end;
+					Shift_CU:
+						begin
+							if listoffs>0 then
+								begin
+									if AutoCheck then Uncheck(Checkmark);
+									objunselect;
+									q:=listoffs;
+									dec(listoffs,pRows);
+									if listoffs<0 then listoffs:=0;
+									if AutoCheck then Check(Checkmark);
+									if List<>nil then filllist(true,listoffs-q)
+								end;
+							if isanyenabled then
+								begin
+									q:=0;
+									while GetState(q)=bf_Disabled do inc(q);
+									MouseSim(q)
+								end
+						end;
+					Shift_CD:
+						begin
+							if listoffs+pRows<pMax then
+								begin
+									if AutoCheck then Uncheck(Checkmark);
+									objunselect;
+									q:=listoffs;
+									inc(listoffs,pRows);
+									checkoffs;
+									if AutoCheck then Check(Checkmark);
+									if List<>nil then filllist(true,listoffs-q)
+								end;
+							if isanyenabled then
+								begin
+									q:=pRows-1;
+									while GetState(q)=bf_Disabled do dec(q);
+									MouseSim(q)
+								end
+						end;
 					Cur_Up:
 						if isanyenabled then
 							begin
+								{ Flackern beseitigen... }
 								if obj>0 then
 									begin
-										q:=obj-PopTree^[pIndex].ob_head-1;
+										q:=obj-PopTree^[pStart].ob_head-1;
 										_upagain:
 										if q>=0 then
 											if GetState(q)=bf_Disabled then
@@ -3279,8 +3825,17 @@ function TPopup.Execute: integer;
 												end;
 										if q<0 then
 											begin
-												q:=pRows-1;
-												goto _upagain
+												if listoffs>0 then
+													begin
+														if AutoCheck then Uncheck(Checkmark);
+														objunselect;
+														dec(listoffs);
+														if AutoCheck then Check(Checkmark);
+														if List<>nil then filllist(true,-1);
+														q:=0
+													end
+												else
+													goto _shifthome
 											end;
 										MouseSim(q)
 									end
@@ -3296,7 +3851,7 @@ function TPopup.Execute: integer;
 							begin
 								if obj>0 then
 									begin
-										q:=obj+1-PopTree^[pIndex].ob_head;
+										q:=obj+1-PopTree^[pStart].ob_head;
 										_dnagain:
 										if q<pRows then
 											if GetState(q)=bf_Disabled then
@@ -3306,8 +3861,17 @@ function TPopup.Execute: integer;
 												end;
 										if q>=pRows then
 											begin
-												q:=0;
-												goto _dnagain
+												if pRows+listoffs<pMax then
+													begin
+														if AutoCheck then Uncheck(Checkmark);
+														objunselect;
+														inc(listoffs);
+														if AutoCheck then Check(Checkmark);
+														if List<>nil then filllist(true,1);
+														q:=pRows-1
+													end
+												else
+													goto _home
 											end;
 										MouseSim(q)
 									end
@@ -3318,6 +3882,44 @@ function TPopup.Execute: integer;
 										MouseSim(q)
 									end
 							end;
+					Home:
+						begin
+							_home:
+							if listoffs>0 then
+								begin
+									if AutoCheck then Uncheck(Checkmark);
+									objunselect;
+									q:=listoffs;
+									listoffs:=0;
+									if AutoCheck then Check(Checkmark);
+									if List<>nil then filllist(true,-q)
+								end;
+							if isanyenabled then
+								begin
+									q:=0;
+									while GetState(q)=bf_Disabled do inc(q);
+									MouseSim(q)
+								end
+						end;
+					Shift_Home:
+						begin
+							_shifthome:
+							if listoffs+pRows<pMax then
+								begin
+									if AutoCheck then Uncheck(Checkmark);
+									objunselect;
+									q:=listoffs;
+									listoffs:=pMax-pRows;
+									if AutoCheck then Check(Checkmark);
+									if List<>nil then filllist(true,listoffs-q)
+								end;
+							if isanyenabled then
+								begin
+									q:=pRows-1;
+									while GetState(q)=bf_Disabled do dec(q);
+									MouseSim(q)
+								end
+						end;
 					Return,Enter,$3920:
 						ms:=mc xor 1;
 					S_Esc,S_Undo:
@@ -3332,21 +3934,26 @@ function TPopup.Execute: integer;
 								rt:=KeyExit(kstat,key);
 								if rt<>id_No then
 									begin
-										Execute:=rt;
+										execte:=rt;
 										if obj>0 then PopTree^[obj].ob_state:=PopTree^[obj].ob_state and not(SELECTED);
 										goto _raus
 									end
 							end
 					end
 				end
-		until (ms and 3)<>mc;
+		until (ms and 1)<>mc;
+		if not(ClickExit(oldobj,mx,my,oldms)) then
+			begin
+				mc:=0;
+				goto _again;
+			end;
 		if obj>0 then
 			begin
 				PopTree^[obj].ob_state:=PopTree^[obj].ob_state and not(SELECTED);
-				Execute:=obj-PopTree^[pIndex].ob_head
+				execte:=listoffs+obj-PopTree^[pStart].ob_head
 			end
 		else
-			Execute:=id_No;
+			execte:=id_No;
 		_raus:
 		HideMouse;
 		scrn.fd_addr:=nil;
@@ -3357,25 +3964,107 @@ function TPopup.Execute: integer;
 		if qused then Application^.IsQSBUsed:=false
 		else
 			freemem(memr.fd_addr,blen);
+		if AutoCheck then
+			begin
+				Uncheck(CheckMark);
+				if execte>=0 then CheckMark:=execte
+			end;
 		_error:
 		ShowMouse;
-		for q:=PopTree^[pIndex].ob_head to PopTree^[pIndex].ob_tail do
+		for q:=PopTree^[pStart].ob_head to PopTree^[pStart].ob_tail do
 			begin
-				PopTree^[q].ob_spec:=spec[q-PopTree^[pIndex].ob_head];
-				PopTree^[q].ob_type:=typ[q-PopTree^[pIndex].ob_head]
+				PopTree^[q].ob_spec:=spec[q-PopTree^[pStart].ob_head];
+				PopTree^[q].ob_type:=typ[q-PopTree^[pStart].ob_head]
 			end;
-		gem.graf_mouse(maus.currnr,@maus.currform);
+		graf_mouse(maus.currnr,@maus.currform);
 		if wait0 then
 			repeat
 				graf_mkstate(mx,my,ms,q)
 			until ms=0;
 		active:=false;
+		Execute:=execte;
 		wind_update(END_MCTRL);
 		wind_update(END_UPDATE)
 	end;
 
 
-function TPopup.ExitPop(mX,mY: integer): integer;
+function TPopup.ClickExit(Indx,mX,mY,BStat: integer): boolean;
+	var x,y,old,ms,dummy: integer;
+
+	begin
+		ClickExit:=true;
+		if List<>nil then
+			if not(bTst(BStat,2)) and (Indx>=ROOT) then
+				begin
+					ClickExit:=false;
+					case Indx of
+					2:
+						if listoffs>0 then
+							begin
+								if AutoCheck then Uncheck(CheckMark);
+								dec(listoffs);
+								if AutoCheck then Check(CheckMark);
+								filllist(true,-1)
+							end;
+					3:
+						begin
+							objc_offset(PopTree,5,x,y);
+							if (mY<y) and (listoffs>0) then
+								begin
+									if AutoCheck then Uncheck(CheckMark);
+									old:=listoffs;
+									dec(listoffs,pRows);
+									if listoffs<0 then listoffs:=0;
+									if AutoCheck then Check(CheckMark);
+									filllist(true,listoffs-old)
+								end
+							else
+								if (mY>=y+PopTree^[5].ob_height) and (pRows+listoffs<pMax) then
+									begin
+										if AutoCheck then Uncheck(CheckMark);
+										old:=listoffs;
+										inc(listoffs,pRows);
+										checkoffs;
+										if AutoCheck then Check(CheckMark);
+										filllist(true,listoffs-old)
+									end;
+							evnt_timer(20,0)
+						end;
+					4:
+						if pRows+listoffs<pMax then
+							begin
+								if AutoCheck then Uncheck(CheckMark);
+								inc(listoffs);
+								if AutoCheck then Check(CheckMark);
+								filllist(true,1)
+							end;
+					5:
+						if pRows<pMax then
+							begin
+								graf_mouse(FLAT_HAND,nil);
+								old:=listoffs;
+								repeat
+									graf_mkstate(x,y,ms,dummy);
+									dummy:=old+round((longint(pMax-pRows)*longint(y-mY))/longint(PopTree^[3].ob_height-PopTree^[5].ob_height));
+									if dummy<0 then dummy:=0;
+									if pRows+dummy>pMax then dummy:=pMax-pRows;
+									if listoffs<>dummy then
+										begin
+											if AutoCheck then Uncheck(CheckMark);
+											x:=dummy-listoffs;
+											listoffs:=dummy;
+											if AutoCheck then Check(CheckMark);
+											filllist(true,x)
+										end
+								until ms=0;
+								graf_mouse(ARROW,nil)
+							end
+					end
+				end
+	end;
+
+
+function TPopup.ExitPop(Indx,mX,mY: integer): integer;
 
 	begin
 		ExitPop:=id_No
@@ -3395,10 +4084,10 @@ procedure TPopup.SetSelection(nr: integer);
 		if active then
 			if isanyenabled then
 				begin
-					if nr<0 then nr:=0;
-					if nr>=pRows then nr:=pRows-1;
-					if GetState(nr)<>bf_Disabled then
-						if nr<>GetSelection then MouseSim(nr)
+					dec(nr,listoffs);
+					if (nr>=0) and (nr<pRows) then
+						if GetState(nr)<>bf_Disabled then
+							if nr<>GetSelection then MouseSim(nr)
 				end
 	end;
 
@@ -3406,7 +4095,12 @@ procedure TPopup.SetSelection(nr: integer);
 function TPopup.GetSelection: integer;
 
 	begin
-		if active then GetSelection:=obj
+		if active then
+			begin
+				if obj>=0 then GetSelection:=listoffs+obj
+				else
+					GetSelection:=id_No
+			end
 		else
 			GetSelection:=id_No
 	end;
@@ -3415,29 +4109,34 @@ function TPopup.GetSelection: integer;
 procedure TPopup.SetText(nr: integer; ATextString: string);
 
 	begin
-		if (nr>=0) and (nr<pRows) and (PopTree<>nil) then
-			StrPCopy(PopTree^[nr+PopTree^[pIndex].ob_head].ob_spec.free_string,ATextString)
+		if (nr>=0) and (nr<pRows) and (PopTree<>nil) and (List=nil) then
+			if isstring(nr) then
+				StrPCopy(PopTree^[nr+PopTree^[pStart].ob_head].ob_spec.free_string,ATextString)
 	end;
 
 
 function TPopup.GetText(nr: integer): string;
 
 	begin
-		if (nr>=0) and (nr<pRows) and (PopTree<>nil) then
-			GetText:=StrPas(PopTree^[nr+PopTree^[pIndex].ob_head].ob_spec.free_string)
-		else
-			GetText:=''
+		GetText:='';
+		if (nr>=0) and (nr<pMax) and (PopTree<>nil) then
+			begin
+				if List<>nil then GetText:=StrPTrimF(PString(List^.KeyOf(List^.At(nr)))^)
+				else
+					if isstring(nr) then
+						GetText:=StrPTrimF(StrPas(PopTree^[nr+PopTree^[pStart].ob_head].ob_spec.free_string))
+			end
 	end;
 
 
 procedure TPopup.SetState(nr,StateFlag: integer);
 
 	begin
-		if (nr>=0) and (nr<pRows) and (PopTree<>nil) then
+		if (nr>=0) and (nr<pRows) and (PopTree<>nil) and (List=nil) then
 			begin
-				if StateFlag=bf_Disabled then PopTree^[nr+PopTree^[pIndex].ob_head].ob_state:=PopTree^[nr+PopTree^[pIndex].ob_head].ob_state or DISABLED
+				if StateFlag=bf_Disabled then PopTree^[nr+PopTree^[pStart].ob_head].ob_state:=PopTree^[nr+PopTree^[pStart].ob_head].ob_state or DISABLED
 				else
-					PopTree^[nr+PopTree^[pIndex].ob_head].ob_state:=PopTree^[nr+PopTree^[pIndex].ob_head].ob_state and not(DISABLED)
+					PopTree^[nr+PopTree^[pStart].ob_head].ob_state:=PopTree^[nr+PopTree^[pStart].ob_head].ob_state and not(DISABLED)
 			end
 	end;
 
@@ -3445,11 +4144,13 @@ procedure TPopup.SetState(nr,StateFlag: integer);
 function TPopup.GetState(nr: integer): integer;
 
 	begin
-		if (nr>=0) and (nr<pRows) and (PopTree<>nil) then
+		if (nr>=0) and (nr<pMax) and (PopTree<>nil) then
 			begin
-				if bTst(PopTree^[nr+PopTree^[pIndex].ob_head].ob_state,DISABLED) then GetState:=bf_Disabled
+				if List<>nil then GetState:=bf_Enabled
 				else
-					GetState:=bf_Enabled
+					if bTst(PopTree^[nr+PopTree^[pStart].ob_head].ob_state,DISABLED) then GetState:=bf_Disabled
+					else
+						GetState:=bf_Enabled
 			end
 		else
 			GetState:=id_No
@@ -3473,11 +4174,12 @@ procedure TPopup.Enable(nr: integer);
 procedure TPopup.SetCheck(nr,CheckFlag: integer);
 
 	begin
+		dec(nr,listoffs);
 		if (nr>=0) and (nr<pRows) and (PopTree<>nil) then
 			begin
-				if CheckFlag=bf_Checked then PopTree^[nr+PopTree^[pIndex].ob_head].ob_state:=PopTree^[nr+PopTree^[pIndex].ob_head].ob_state or CHECKED
+				if CheckFlag=bf_Checked then PopTree^[nr+PopTree^[pStart].ob_head].ob_state:=PopTree^[nr+PopTree^[pStart].ob_head].ob_state or CHECKED
 				else
-					PopTree^[nr+PopTree^[pIndex].ob_head].ob_state:=PopTree^[nr+PopTree^[pIndex].ob_head].ob_state and not(CHECKED)
+					PopTree^[nr+PopTree^[pStart].ob_head].ob_state:=PopTree^[nr+PopTree^[pStart].ob_head].ob_state and not(CHECKED)
 			end
 	end;
 
@@ -3485,14 +4187,28 @@ procedure TPopup.SetCheck(nr,CheckFlag: integer);
 function TPopup.GetCheck(nr: integer): integer;
 
 	begin
-		if (nr>=0) and (nr<pRows) and (PopTree<>nil) then
+		GetCheck:=id_No;
+		if (nr>=0) and (nr<pMax) and (PopTree<>nil) then
 			begin
-				if bTst(PopTree^[nr+PopTree^[pIndex].ob_head].ob_state,CHECKED) then GetCheck:=bf_Checked
+				if AutoCheck then
+					begin
+						if nr=CheckMark then GetCheck:=bf_Checked
+						else
+							GetCheck:=bf_Unchecked
+					end
 				else
-					GetCheck:=bf_Unchecked
+					begin
+						dec(nr,listoffs);
+						if (nr>=0) and (nr<pRows) then
+							begin
+								if bTst(PopTree^[nr+PopTree^[pStart].ob_head].ob_state,CHECKED) then GetCheck:=bf_Checked
+								else
+									GetCheck:=bf_Unchecked
+							end
+						else
+							GetCheck:=bf_Unchecked
+					end
 			end
-		else
-			GetCheck:=id_No
 	end;
 
 
@@ -3519,14 +4235,39 @@ procedure TPopup.Toggle(nr: integer);
 	end;
 
 
+procedure TPopup.SetOffset(Offs: integer);
+
+	begin
+		listoffs:=Offs;
+		checkoffs
+	end;
+
+
+function TPopup.GetOffset: integer;
+
+	begin
+		GetOffset:=listoffs
+	end;
+
+
 	{ private }
 
 
 procedure TPopup.MouseSim(sobj: integer);
+	var x,y: integer;
 
 	begin
-		with PopTree^[pIndex] do
-			SetMousePos(ob_x+PopTree^[ob_head+sobj].ob_x+(PopTree^[ob_head+sobj].ob_width shr 1),ob_y+PopTree^[ob_head+sobj].ob_y+(PopTree^[ob_head+sobj].ob_height shr 1))
+		{ korrektes Cursorverhalten, wenn pMax<pRows... }
+		objc_offset(PopTree,pStart,x,y);
+		with PopTree^[pStart] do
+			SetMousePos(x+PopTree^[ob_head+sobj].ob_x+(PopTree^[ob_head+sobj].ob_width shr 1),y+PopTree^[ob_head+sobj].ob_y+(PopTree^[ob_head+sobj].ob_height shr 1))
+	end;
+
+
+function TPopup.isstring(nr: integer): boolean;
+
+	begin
+		isstring:=((PopTree^[nr+PopTree^[pStart].ob_head].ob_type and $ff)=G_STRING)
 	end;
 
 
@@ -3541,6 +4282,115 @@ function TPopup.isanyenabled: boolean;
 					isanyenabled:=true;
 					exit
 				end
+	end;
+
+
+procedure TPopup.checkoffs;
+
+	begin
+		if listoffs+pRows>pMax then listoffs:=pMax-pRows;
+		if listoffs<0 then listoffs:=0
+	end;
+
+
+procedure TPopup.filllist(draw: boolean; diff: integer);
+	var q,n,x,y,wy,wh: integer;
+	    pxy          : ARRAY_8;
+	    scrn,memr    : MFDB;
+
+	begin
+		KeyRepeatOff;
+		for q:=6 to popsize-1 do
+			with PopTree^[q] do
+				begin
+					n:=q+listoffs-6;
+					if n<List^.Count then
+						begin
+							ob_state:=ob_state and not(DISABLED);
+							ob_spec.free_string:=pointer(longint(List^.KeyOf(List^.At(n)))+1)
+						end
+					else
+						begin
+							ob_state:=ob_state or DISABLED;
+							ob_spec.free_string:=emptylist
+						end
+				end;
+		with PopTree^[5] do
+			if pRows<pMax then ob_y:=round((longint(listoffs)*longint(PopTree^[3].ob_height-ob_height))/longint(pMax-pRows))
+			else
+				ob_y:=0;
+		if draw then
+			if diff<>0 then
+				begin
+					HideMouse;
+					objc_offset(PopTree,1,x,y);
+					if abs(diff)<pRows then
+						begin
+							with PopTree^[1] do
+								if diff>0 then
+									begin
+										wh:=diff*PopTree^[6].ob_height;
+										pxy[0]:=x;
+										pxy[1]:=y+wh;
+										pxy[2]:=x+ob_width-1;
+										pxy[3]:=y+ob_height-1;
+										pxy[4]:=x;
+										pxy[5]:=y;
+										pxy[6]:=pxy[2];
+										pxy[7]:=pxy[3]-wh;
+										wy:=pxy[3]-wh
+									end
+								else
+									begin
+										wh:=-diff*PopTree^[6].ob_height;
+										pxy[0]:=x;
+										pxy[1]:=y;
+										pxy[2]:=x+ob_width-1;
+										pxy[3]:=y+ob_height-wh-1;
+										pxy[4]:=x;
+										pxy[5]:=y+wh;
+										pxy[6]:=pxy[2];
+										pxy[7]:=y+ob_height-1;
+										wy:=y
+									end;
+							scrn.fd_addr:=nil;
+							memr.fd_addr:=nil;
+							vro_cpyfm(Application^.vdiHandle,S_ONLY,pxy,scrn,memr)
+						end
+					else
+						begin
+							wy:=y;
+							wh:=PopTree^[1].ob_height
+						end;
+					objc_draw(PopTree,1,MAX_DEPTH,x,wy,PopTree^[1].ob_width,wh);
+					objc_draw(PopTree,3,MAX_DEPTH,SysInfo.Desktop.X,SysInfo.Desktop.Y,SysInfo.Desktop.W,SysInfo.Desktop.H);
+					ShowMouse
+				end;
+		KeyRepeatRestore
+	end;
+
+
+procedure TPopup.commoninit;
+
+	begin
+		Style:=Style or es_Popup;
+		Shadow:=true;
+		lfrtcrs:=true;
+		wait0:=true;
+		active:=false;
+		lstdspose:=false;
+		popsize:=0;
+		PopTree:=nil;
+		emptylist:=ChrNew('');
+		listoffs:=0;
+		List:=nil;
+		pFlag:=POP_LEFTOP;
+		pRows:=0;
+		pX:=0;
+		pY:=0;
+		AutoCheck:=false;
+		CheckMark:=id_No;
+		mincols:=0
 	end;
 
 { *** TPOPUP *** }
@@ -3593,7 +4443,7 @@ procedure TScroller.HScroll;
 			begin
 				dif:=XRange-XPage-1;
 				if dif<1 then dif:=1;
-				dif:=(1000*XPos) div dif;
+				dif:=round(longint(1000)*XPos/dif);
 				if dif>1000 then dif:=1000;
 				with Window^.Attr do
 					if gemHandle>=0 then
@@ -3610,7 +4460,7 @@ procedure TScroller.VScroll;
 			begin
 				dif:=YRange-YPage-1;
 				if dif<1 then dif:=1;
-				dif:=(1000*YPos) div dif;
+				dif:=round(longint(1000)*YPos/dif);
 				if dif>1000 then dif:=1000;
 				with Window^.Attr do
 					if gemHandle>=0 then
@@ -3620,25 +4470,28 @@ procedure TScroller.VScroll;
 
 
 function TScroller.IsVisibleRect(X,Y,XExt,YExt: longint): boolean;
-	var r: GRECT;
+	var r,rc: GRECT;
 
 	begin
-		r.X:=(X-XPos)*XUnit+Window^.Work.X;
-		r.Y:=(Y-YPos)*YUnit+Window^.Work.Y;
+		Window^.GetVWork(rc);
+		r.X:=(X-XPos)*XUnit+rc.X;
+		r.Y:=(Y-YPos)*YUnit+rc.Y;
 		r.W:=XExt*XUnit;
 		r.H:=YExt*YUnit;
-		IsVisibleRect:=rc_intersect(Window^.Work,r)
+		IsVisibleRect:=rc_intersect(rc,r)
 	end;
 
 
 procedure TScroller.ScrollBy(dX,dY: longint);
-	var pw,ph,xdif,ydif: integer;
+	var pw,ph,xdif,ydif: longint;
+	    r              : GRECT;
 
 	begin
 		inc(dX,XPos);
 		inc(dY,YPos);
-		pw:=Window^.Work.W div XUnit;
-		ph:=Window^.Work.H div YUnit;
+		Window^.GetVWork(r);
+		pw:=round(r.W/XUnit);
+		ph:=round(r.H/YUnit);
 		if dX+pw>=XRange then dX:=XRange-pw-1;
 		if dY+ph>=YRange then dY:=YRange-ph-1;
 		if dX<0 then dX:=0;
@@ -3647,7 +4500,7 @@ procedure TScroller.ScrollBy(dX,dY: longint);
 			begin
 				if dX<>XPos then
 					begin
-						xdif:=(dX-XPos)*XUnit;
+						xdif:=(dX-XPos)*longint(XUnit);
 						XPos:=dX;
 						HScroll
 					end
@@ -3655,23 +4508,25 @@ procedure TScroller.ScrollBy(dX,dY: longint);
 					xdif:=0;
 				if dY<>YPos then
 					begin
-						ydif:=(dY-YPos)*YUnit;
+						ydif:=(dY-YPos)*longint(YUnit);
 						YPos:=dY;
 						VScroll
 					end
 				else
 					ydif:=0;
-				RedrawParent(xdif,ydif)
+				ParentPaint(xdif,ydif)
 			end
 	end;
 
 
 procedure TScroller.ScrollTo(X,Y: longint);
-	var pw,ph,xdif,ydif: integer;
+	var pw,ph,xdif,ydif: longint;
+	    r              : GRECT;
 
 	begin
-		pw:=Window^.Work.W div XUnit;
-		ph:=Window^.Work.H div YUnit;
+		Window^.GetVWork(r);
+		pw:=round(r.W/XUnit);
+		ph:=round(r.H/YUnit);
 		if X+pw>=XRange then X:=XRange-pw-1;
 		if Y+ph>=YRange then Y:=YRange-ph-1;
 		if X<0 then X:=0;
@@ -3680,7 +4535,7 @@ procedure TScroller.ScrollTo(X,Y: longint);
 			begin
 				if X<>XPos then
 					begin
-						xdif:=(X-XPos)*XUnit;
+						xdif:=(X-XPos)*longint(XUnit);
 						XPos:=X;
 						HScroll
 					end
@@ -3688,32 +4543,36 @@ procedure TScroller.ScrollTo(X,Y: longint);
 					xdif:=0;
 				if Y<>YPos then
 					begin
-						ydif:=(Y-YPos)*YUnit;
+						ydif:=(Y-YPos)*longint(YUnit);
 						YPos:=Y;
 						VScroll
 					end
 				else
 					ydif:=0;
-				RedrawParent(xdif,ydif)
+				ParentPaint(xdif,ydif)
 			end
 	end;
 
 
 procedure TScroller.SetPageSize;
+	var r: GRECT;
 
 	begin
-		XPage:=Window^.Work.W div XUnit;
-		YPage:=Window^.Work.H div YUnit
+		Window^.GetVWork(r);
+		XPage:=round(r.W/XUnit);
+		YPage:=round(r.H/YUnit)
 	end;
 
 
 procedure TScroller.SetSBarRange;
 	var dummy,pw,ph,xp,yp: longint;
 	    valid            : boolean;
+	    r                : GRECT;
 
 	begin
-		pw:=Window^.Work.W div XUnit;
-		ph:=Window^.Work.H div YUnit;
+		Window^.GetVWork(r);
+		pw:=round(r.W/XUnit);
+		ph:=round(r.H/YUnit);
 		xp:=XPos;
 		yp:=YPos;
 		if xp+pw>=XRange then xp:=XRange-pw-1;
@@ -3725,7 +4584,7 @@ procedure TScroller.SetSBarRange;
 		YPos:=yp;
 		if HasHScrollBar then
 			begin
-				dummy:=(1000*(pw+1)) div XRange;
+				dummy:=round(longint(1000)*longint(pw+1)/XRange);
 				if dummy<1 then dummy:=1;
 				if dummy>1000 then dummy:=1000;
 				with Window^.Attr do
@@ -3734,7 +4593,7 @@ procedure TScroller.SetSBarRange;
 			end;
 		if HasVScrollBar then
 			begin
-				dummy:=(1000*(ph+1)) div YRange;
+				dummy:=round(longint(1000)*longint(ph+1)/YRange);
 				if dummy<1 then dummy:=1;
 				if dummy>1000 then dummy:=1000;
 				with Window^.Attr do
@@ -3743,7 +4602,7 @@ procedure TScroller.SetSBarRange;
 			end;
 		HScroll;
 		VScroll;
-		if valid then Window^.ForceRedraw
+		if valid then Window^.ForceVRedraw
 	end;
 
 
@@ -3767,37 +4626,48 @@ procedure TScroller.SetUnits(TheXUnit,TheYUnit: integer);
 			begin
 				XUnit:=TheXUnit;
 				YUnit:=TheYUnit;
-				Window^.ForceRedraw
+				Window^.ForceVRedraw
 			end
 	end;
 
 
 function TScroller.GetXOrg: longint;
+	var r: GRECT;
 
 	begin
-		GetXOrg:=Window^.Work.X-XPos*XUnit
+		Window^.GetVWork(r);
+		GetXOrg:=longint(r.X)-XPos*longint(XUnit)
 	end;
 
 
 function TScroller.GetYOrg: longint;
+	var r: GRECT;
 
 	begin
-		GetYOrg:=Window^.Work.Y-YPos*YUnit
+		Window^.GetVWork(r);
+		GetYOrg:=longint(r.Y)-YPos*longint(YUnit)
+	end;
+
+
+procedure TScroller.RedrawParent(XDif,YDif: longint);
+
+	begin
 	end;
 
 
 	{ private }
 
 
-procedure TScroller.RedrawParent(xdif,ydif: integer);
+procedure TScroller.ParentPaint(xdif,ydif: longint);
 	label _fertig;
 
-	var sm,dm     : MFDB;
-	    xy        : ARRAY_8;
-	    rect,vr,hr: GRECT;
-	    valid     : boolean;
-	    pipe      : Pipearray;
-	    vh        : integer;
+	var sm,dm  : MFDB;
+	    xy     : ARRAY_8;
+	    rect,vr,
+	    hr,vwk : GRECT;
+	    valid  : boolean;
+	    pipe   : Pipearray;
+	    vh     : integer;
 
 	procedure zeichnen(box: GRECT);
 		var PaintInfo: TPaintStruct;
@@ -3828,16 +4698,19 @@ procedure TScroller.RedrawParent(xdif,ydif: integer);
 
 	begin
 		if Window^.Attr.Status<>ws_Open then exit;
+		if Window^.IsShaded then exit;
 		if (xdif=0) and (ydif=0) then exit;
 		if not(TrackMode) or Window^.IsIconified then
 			begin
-				Window^.ForceRedraw;
+				Window^.ForceVRedraw;
 				exit
 			end;
 		wind_update(BEG_UPDATE);
+		RedrawParent(xdif,ydif);
+		Window^.GetVWork(vwk);
 		if not(bTst(Style,scs_BitbltScrolling)) then
 			begin
-				with Window^ do WMRedraw(Work.X,Work.Y,Work.W,Work.H);
+				with vwk do Window^.WMRedraw(X,Y,W,H);
 				goto _fertig
 			end;
 		vh:=Application^.vdiHandle;
@@ -3847,67 +4720,70 @@ procedure TScroller.RedrawParent(xdif,ydif: integer);
 		Window^.InitPaint;
 		while valid do
 			begin
-				if (rect.H>=abs(ydif)+YUnit) and (rect.W>=abs(xdif)+XUnit) then
+				if rc_intersect(vwk,rect) then
 					begin
-						with rect do
+						if (rect.H>=abs(ydif)+YUnit) and (rect.W>=abs(xdif)+XUnit) then
 							begin
-								if ydif>0 then
+								with rect do
 									begin
-										xy[1]:=Y1+ydif;
-										xy[3]:=Y2;
-										xy[5]:=Y1;
-										xy[7]:=Y2-ydif;
-										vr.Y1:=Y2+1-ydif;
-										vr.Y2:=Y2
-									end
-								else
-									begin
-										xy[1]:=Y1;
-										xy[3]:=Y2+ydif;
-										xy[5]:=Y1-ydif;
-										xy[7]:=Y2;
-										vr.Y1:=Y1;
-										vr.Y2:=Y1-ydif-1
+										if ydif>0 then
+											begin
+												xy[1]:=Y1+ydif;
+												xy[3]:=Y2;
+												xy[5]:=Y1;
+												xy[7]:=Y2-ydif;
+												vr.Y1:=Y2+1-ydif;
+												vr.Y2:=Y2
+											end
+										else
+											begin
+												xy[1]:=Y1;
+												xy[3]:=Y2+ydif;
+												xy[5]:=Y1-ydif;
+												xy[7]:=Y2;
+												vr.Y1:=Y1;
+												vr.Y2:=Y1-ydif-1
+											end;
+										if xdif>0 then
+											begin
+												xy[0]:=X1+xdif;
+												xy[2]:=X2;
+												xy[4]:=X1;
+												xy[6]:=X2-xdif;
+												hr.X1:=X2+1-xdif;
+												hr.X2:=X2
+											end
+										else
+											begin
+												xy[0]:=X1;
+												xy[2]:=X2+xdif;
+												xy[4]:=X1-xdif;
+												xy[6]:=X2;
+												hr.X1:=X1;
+												hr.X2:=X1-xdif-1
+											end
 									end;
-								if xdif>0 then
+								sm.fd_addr:=nil;
+								dm.fd_addr:=nil;
+								vro_cpyfm(vh,S_ONLY,xy,sm,dm);
+								if ydif<>0 then
 									begin
-										xy[0]:=X1+xdif;
-										xy[2]:=X2;
-										xy[4]:=X1;
-										xy[6]:=X2-xdif;
-										hr.X1:=X2+1-xdif;
-										hr.X2:=X2
-									end
-								else
+										vr.X1:=rect.X1;
+										vr.X2:=rect.X2;
+										A2toGR(vr);
+										zeichnen(vr)
+									end;
+								if xdif<>0 then
 									begin
-										xy[0]:=X1;
-										xy[2]:=X2+xdif;
-										xy[4]:=X1-xdif;
-										xy[6]:=X2;
-										hr.X1:=X1;
-										hr.X2:=X1-xdif-1
+										hr.Y1:=rect.Y1;
+										hr.Y2:=rect.Y2;
+										A2toGR(hr);
+										zeichnen(hr)
 									end
-							end;
-						sm.fd_addr:=nil;
-						dm.fd_addr:=nil;
-						vro_cpyfm(vh,S_ONLY,xy,sm,dm);
-						if ydif<>0 then
-							begin
-								vr.X1:=rect.X1;
-								vr.X2:=rect.X2;
-								A2toGR(vr);
-								zeichnen(vr)
-							end;
-						if xdif<>0 then
-							begin
-								hr.Y1:=rect.Y1;
-								hr.Y2:=rect.Y2;
-								A2toGR(hr);
-								zeichnen(hr)
 							end
-					end
-				else
-					zeichnen(rect);
+						else
+							zeichnen(rect)
+					end;
 				valid:=Window^.NextWorkRect(rect)
 			end;
 		Window^.ExitPaint;
@@ -3935,7 +4811,8 @@ constructor TWindow.Init(AParent: PWindow; ATitle: string);
   	vdiHandle:=GetVDIHandle;
   	if vdiHandle=id_NewHandle then
   		begin
-		  	for i:=0 to 9 do workIn[i]:=1;
+		  	for i:=1 to 9 do workIn[i]:=1;
+		  	workIn[0]:=getrez+2;
 				workIn[10]:=RC;
 				vdiHandle:=Application^.aesHandle;
 				v_opnvwk(workIn,vdiHandle,workOut);
@@ -3954,6 +4831,7 @@ constructor TWindow.Init(AParent: PWindow; ATitle: string);
 			end;
 		if Application^.SpeedoActive and ownhndl then vst_error(vdiHandle,0,spderr);
     inc(Application^.HMax);
+		fillchar(Work,sizeof(Work),0);
     with Attr do
     	begin
     	  Title:=nil;
@@ -3962,7 +4840,7 @@ constructor TWindow.Init(AParent: PWindow; ATitle: string);
     		gemHandle:=-1;
     		Style:=GetStyle;
     		ExStyle:=ws_ex_Modeless;
-				fillchar(RBox,sizeof(RBox),0);
+				fillchar(VWork,sizeof(VWork),0);
     		Status:=ws_NoWindow;
     		if ownhndl then
     			begin
@@ -3995,11 +4873,19 @@ constructor TWindow.Init(AParent: PWindow; ATitle: string);
 				p^.Nxt:=@self;
 				Prev:=p
 			end;
+		for i:=0 to MAXTOOLBARS do
+			with tbval[i] do
+				begin
+					Size:=0;
+					Indx:=-1;
+					Tree:=nil
+				end;
 		DlgTree:=nil;
 		tbtree:=-1;
 		icntitl:=nil;
 		icfpos:=-1;
 		nxticn:=nil;
+		Application^.ChkError;
     GetWindowClass(Class);
     GetIconWindowClass(IconClass);
     EnableAutoCreate;
@@ -4008,12 +4894,18 @@ constructor TWindow.Init(AParent: PWindow; ATitle: string);
     if ownhndl then SetupVDI;
     Scroller:=GetScroller;
     Clipboard:=GetClipboard;
-    SetupWindow
+    SetupWindow;
+    if (Application^.Err=em_InvalidWindow) or (Application^.Err=em_InvalidMainWindow) or (Application^.Err=em_WOpenFailure) then
+    	begin
+    		Done;
+    		fail
+    	end
   end;
 
 
 destructor TWindow.Done;
 	var pp: ^PWindow;
+	    q : integer;
 
 	begin
 		while (ChildList<>nil) do ChildList^.Free;
@@ -4021,7 +4913,7 @@ destructor TWindow.Done;
 		if Attr.Status in [ws_Created,ws_Open] then Destroy;
 		FreeIcon;
 		FreeDialog;
-		FreeToolbar;
+		for q:=MAXTOOLBARS downto 0 do FreeToolbar(tbval[q].Indx);
 		FreeMenu;
 		if Attr.Handle=Application^.HMax then dec(Application^.HMax);
     if Parent<>nil then pp:=@Parent^.ChildList
@@ -4057,16 +4949,14 @@ function TWindow.GetVDIHandle: integer;
 
 
 procedure TWindow.SetupVDI;
-	var dname: string[33];
-	    dummy: integer;
+	var dummy: integer;
 
 	begin
 		spderr:=0;
 		if Application^.GDOSActive then
 			if bTst(Attr.ExStyle,ws_ex_LoadFonts) then Attr.addFonts:=vst_load_fonts(vdiHandle,0);
 		if spderr<>0 then Application^.Err:=em_SpeedoLoadFailure;
-		vst_font(vdiHandle,vqt_name(vdiHandle,1,dname));
-		vst_height(vdiHandle,SysInfo.SFHeight,Attr.charWidth,Attr.charHeight,Attr.boxWidth,Attr.boxHeight);
+		SetSystemFont(vdiHandle,Attr.charWidth,Attr.charHeight,Attr.boxWidth,Attr.boxHeight);
 		vst_alignment(vdiHandle,TA_LEFT,TA_BASELINE,dummy,dummy);
 		vsl_udsty(vdiHandle,$5555);
 		vsf_interior(vdiHandle,FIS_HOLLOW);
@@ -4106,12 +4996,19 @@ function TWindow.GetClipboard: PClipboard;
 	end;
 
 
+function TWindow.GetOLGAGroup: integer;
+
+	begin
+		GetOLGAGroup:=integer(Attr.Handle and $7fff)
+	end;
+
+
 procedure TWindow.GetWindowClass(var AWndClass: TWndClass);
 
 	begin
 		with AWndClass do
 			begin
-				Style:=cs_DblClks or cs_CreateOnAccOpen or cs_AutoOpen or cs_QuitOnClose;
+				Style:=cs_DblClks or cs_CreateOnAccOpen or cs_AutoOpen or cs_QuitOnClose or cs_OLGADocument;
 				hCursor:=ARROW;
 				hbrBackground:=White+1;
 				ToolbarTree:=nil;
@@ -4147,16 +5044,11 @@ function TWindow.GetIconTitle: string;
 
 
 function TWindow.GetTitle: string;
-	var ret: string;
 
 	begin
 		if Attr.Title=nil then GetTitle:=''
 		else
-			begin
-				ret:=Attr.Title^;
-				while StrPRight(ret,1)=#0 do ret:=StrPLeft(ret,length(ret)-1);
-				GetTitle:=StrPTrimF(ret)
-			end
+			GetTitle:=StrPTrimF(Attr.Title^)
 	end;
 
 
@@ -4189,6 +5081,40 @@ function TWindow.IsIconified: boolean;
 			end
 		else
 			IsIconified:=(icfpos>=0)
+	end;
+
+
+function TWindow.IsShaded: boolean;
+	var mode,
+	    dummy,
+	    x,y,w,h: integer;
+
+	begin
+		if Application^.MagiCActive then
+			begin
+				if IsModeless then
+					begin
+						if Attr.Status=ws_Open then
+							begin
+								wind_get(Attr.gemHandle,WF_FIRSTXYWH,x,y,w,h);
+								IsShaded:=((w<=0) or (h<=0))
+							end
+						else
+							IsShaded:=true
+					end
+				else
+					IsShaded:=false
+			end
+		else
+			begin
+				if agi.Shading and (Attr.gemHandle>=0) then
+					begin
+						wind_get(Attr.gemHandle,WF_SHADE,mode,dummy,dummy,dummy);
+						IsShaded:=(mode<>0)
+					end
+				else
+					IsShaded:=false
+			end
 	end;
 
 
@@ -4273,6 +5199,16 @@ procedure TWindow.GetCurr;
 	end;
 
 
+procedure TWindow.GetRealCurr(var r: GRECT);
+
+	begin
+		GetCurr;
+		if IsIconified then r:=icfcurr
+		else
+			r:=Curr
+	end;
+
+
 procedure TWindow.GetWork;
 
 	begin
@@ -4304,6 +5240,17 @@ procedure TWindow.GetWork;
 					end;
 				GRtoA2(Work)
 			end
+	end;
+
+
+procedure TWindow.GetVWork(var r: GRECT);
+
+	begin
+		r.X1:=Work.X1+Attr.VWork.X1;
+		r.Y1:=Work.Y1+Attr.VWork.Y1;
+		r.X2:=Work.X2-Attr.VWork.X2;
+		r.Y2:=Work.Y2-Attr.VWork.Y2;
+		A2toGR(r)
 	end;
 
 
@@ -4347,7 +5294,7 @@ procedure TWindow.FreeIcon;
 	end;
 
 
-procedure TWindow.LoadMenu(Indx: integer);
+procedure TWindow.LoadMenu(Indx: integer; Tune: boolean);
 	var tp : PTree;
 	    q,l: integer;
 
@@ -4378,27 +5325,38 @@ procedure TWindow.LoadMenu(Indx: integer);
 								exit
 							end;
 						for q:=0 to mnsize-1 do Class.MenuTree^[q]:=tp^[q];
+						tunemenu:=Tune;
 						with Class.MenuTree^[ROOT] do
 							begin
-								q:=Class.MenuTree^[Class.MenuTree^[Class.MenuTree^[ob_tail].ob_head].ob_head].ob_next;
-								l:=StrLen(Class.MenuTree^[q].ob_spec.free_string);
-				  			if (Application^.Attr.Country=FRG) or (Application^.Attr.Country=SWG) then
-				  				begin
-										nextentry('Wechseln','^W',false);
-										nextentry('Volle Grîûe','^*',not(bTst(Attr.Style,FULLER)));
-										nextentry('Ikonifizieren','^3',(icfserver=nil));
-										nextentry('Hintergrund','^/',not(agi.Backdrop))
-									end
-								else
+								if tunemenu then
 									begin
-										nextentry('Cycle','^W',false);
-										nextentry('Maximize','^*',not(bTst(Attr.Style,FULLER)));
-										nextentry('Iconify','^3',(icfserver=nil));
-										nextentry('Backdrop','^/',not(agi.Backdrop))
+										q:=Class.MenuTree^[Class.MenuTree^[Class.MenuTree^[ob_tail].ob_head].ob_head].ob_next;
+										l:=StrLen(Class.MenuTree^[q].ob_spec.free_string);
+						  			if Application^.Attr.Country=FRA then
+						  				begin
+												nextentry('Cycle','^W',false);
+												nextentry('Maximiser','^*',not(bTst(Attr.Style,FULLER)));
+												nextentry('Iconifier','^3',(icfserver=nil));
+												nextentry('Recouvrir','^/',not(agi.Backdrop))
+						  				end
+						  			else if (Application^.Attr.Country=FRG) or (Application^.Attr.Country=SWG) then
+						  				begin
+												nextentry('Wechseln','^W',false);
+												nextentry('Volle Grîûe','^*',not(bTst(Attr.Style,FULLER)));
+												nextentry('Ikonifizieren','^3',(icfserver=nil));
+												nextentry('Hintergrund','^/',not(agi.Backdrop))
+											end
+										else
+											begin
+												nextentry('Cycle','^W',false);
+												nextentry('Maximize','^*',not(bTst(Attr.Style,FULLER)));
+												nextentry('Iconify','^3',(icfserver=nil));
+												nextentry('Backdrop','^/',not(agi.Backdrop))
+											end;
+										Class.MenuTree^[Class.MenuTree^[ob_tail].ob_head].ob_tail:=q;
+										Class.MenuTree^[q].ob_next:=Class.MenuTree^[ob_tail].ob_head;
+										with Class.MenuTree^[Class.MenuTree^[ob_tail].ob_head] do ob_height:=(ob_height shr 3)*6
 									end;
-								Class.MenuTree^[Class.MenuTree^[ob_tail].ob_head].ob_tail:=q;
-								Class.MenuTree^[q].ob_next:=Class.MenuTree^[ob_tail].ob_head;
-								with Class.MenuTree^[Class.MenuTree^[ob_tail].ob_head] do ob_height:=(ob_height shr 3)*6;
 								with Class.MenuTree^[Class.MenuTree^[ob_head].ob_head] do ob_width:=Application^.Attr.MaxPX+1;
 								with Class.MenuTree^[ob_tail] do
 									begin
@@ -4430,8 +5388,11 @@ procedure TWindow.FreeMenu;
 	begin
 		if Class.MenuTree<>nil then
 			begin
-				q:=Class.MenuTree^[Class.MenuTree^[Class.MenuTree^[Class.MenuTree^[ROOT].ob_tail].ob_head].ob_head].ob_next;
-				for i:=0 to 3 do freenext;
+				if tunemenu then
+					begin
+						q:=Class.MenuTree^[Class.MenuTree^[Class.MenuTree^[Class.MenuTree^[ROOT].ob_tail].ob_head].ob_head].ob_next;
+						for i:=0 to 3 do freenext
+					end;
 				freemem(Class.MenuTree,mnsize*sizeof(AESOBJECT));
 				Class.MenuTree:=nil
 			end;
@@ -4440,63 +5401,126 @@ procedure TWindow.FreeMenu;
 	end;
 
 
-procedure TWindow.LoadToolbar(Indx: integer; Opposite: boolean);
-	var tp: PTree;
+procedure TWindow.LoadToolbar(Indx: integer);
+	var tp,ntp      : PTree;
+	    tbc,q,tbsize: integer;
 
 	begin
+		for q:=0 to MAXTOOLBARS do
+			if tbval[q].Indx=Indx then
+				begin
+					Application^.Err:=em_InvalidToolbar;
+					exit
+				end;
 		tp:=Application^.GetAddr(Indx);
-		if (Class.ToolbarTree=nil) and (tp<>nil) then
+		if (tbval[MAXTOOLBARS].Indx<0) and (tp<>nil) then
 			begin
-				Class.ToolbarTree:=tp;
-				tbtree:=Indx;
-				if Opposite then
-					Class.Style:=Class.Style or cs_ToolbarOpposite or cs_FullRedraw
+				tbsize:=ROOT;
+				while not(bTst(tp^[tbsize].ob_flags,LASTOB)) do inc(tbsize);
+				inc(tbsize);
+				getmem(ntp,tbsize*sizeof(AESOBJECT));
+				if ntp=nil then Application^.Err:=em_InvalidToolbar
 				else
-					Class.Style:=Class.Style and not(cs_ToolbarOpposite);
-				with Class.ToolbarTree^[ROOT] do
 					begin
-						if bTst(Application^.Attr.Style,as_3DFlags) then ob_flags:=ob_flags or FL3DBAK
-						else
-							ob_flags:=ob_flags and not(FL3DBAK);
-						if ob_height>ob_width then
+						for q:=0 to tbsize-1 do ntp^[q]:=tp^[q];
+						tbc:=0;
+						while tbval[tbc].Indx>=0 do inc(tbc);
+						tbval[tbc].Size:=tbsize;
+						tbval[tbc].Indx:=Indx;
+						tbval[tbc].Tree:=ntp;
+						with ntp^[ROOT] do
 							begin
-								tbsize:=ob_height;
-								ob_height:=Application^.Attr.MaxPY
-						 	end
-						else
+								if (ob_type and $ff) in [G_BOX,G_IBOX,G_BOXCHAR] then ob_spec.index:=(ob_spec.index and $ff00ffff) or $00010000;
+								if bTst(Application^.Attr.Style,as_3DFlags) then ob_flags:=ob_flags or FL3DBAK
+								else
+									ob_flags:=ob_flags and not(FL3DBAK);
+								if ob_height>ob_width then ob_height:=Application^.Attr.MaxPY
+								else
+									ob_width:=Application^.Attr.MaxPX
+							end;
+						if tbc=0 then
 							begin
-								tbsize:=ob_width;
-								ob_width:=Application^.Attr.MaxPX
+								Class.ToolbarTree:=ntp;
+								tbtree:=Indx;
+								GetWork;
+								if Attr.Status=ws_Open then Application^.InvalidateRect(Attr.Handle,nil)
 							end
-					end;
-				GetWork;
-				if Attr.Status=ws_Open then ForceRedraw
+					end
 			end
 		else
 			Application^.Err:=em_InvalidToolbar
 	end;
 
 
-procedure TWindow.FreeToolbar;
+procedure TWindow.SwitchToolbar(Indx: integer);
+	var i,q: integer;
+	    old: TToolbarDescr;
 
 	begin
-		with Class do
-			begin
-				if ToolbarTree<>nil then
-					begin
-						with ToolbarTree^[ROOT] do
-							begin
-								if ob_height>ob_width then ob_height:=tbsize
-								else
-									ob_width:=tbsize
-							end
-					end;
-				ToolbarTree:=nil;
-				Style:=Style and not(cs_ToolbarOpposite)
-			end;
-		tbtree:=-1;
+		if (Indx=tbtree) or (Indx<0) then exit;
+		i:=-1;
+		for q:=0 to MAXTOOLBARS do
+			if tbval[q].Indx=Indx then
+				begin
+					i:=q;
+					break
+				end;
+		if i<0 then exit;
+		old:=tbval[i];
+		for q:=i downto 1 do tbval[q]:=tbval[q-1];
+		tbval[0]:=old;
+		tbtree:=tbval[0].Indx;
+		Class.ToolbarTree:=tbval[0].Tree;
 		GetWork;
-		if Attr.Status=ws_Open then ForceRedraw
+		if Attr.Status=ws_Open then Application^.InvalidateRect(Attr.Handle,nil)
+	end;
+
+
+procedure TWindow.FreeToolbar(Indx: integer);
+	var i,q: integer;
+
+	begin
+		if Indx<0 then exit;
+		i:=-1;
+		for q:=0 to MAXTOOLBARS do
+			if tbval[q].Indx=Indx then
+				begin
+					i:=q;
+					break
+				end;
+		if i<0 then exit;
+		with tbval[i] do
+			if tree<>nil then
+				if size>0 then freemem(tree,size*sizeof(AESOBJECT));
+		if i<MAXTOOLBARS then
+			for q:=i to MAXTOOLBARS-1 do tbval[q]:=tbval[q+1];
+		with tbval[MAXTOOLBARS] do
+			begin
+				Size:=0;
+				Indx:=-1;
+				Tree:=nil
+			end;
+		if i=0 then
+			begin
+				tbtree:=tbval[0].Indx;
+				Class.ToolbarTree:=tbval[0].Tree;
+				GetWork;
+				if Attr.Status=ws_Open then Application^.InvalidateRect(Attr.Handle,nil)
+			end
+	end;
+
+
+procedure TWindow.SetToolbarPos(Opposite: boolean);
+
+	begin
+		if Opposite then Class.Style:=Class.Style or cs_ToolbarOpposite or cs_FullRedraw
+		else
+			Class.Style:=Class.Style and not(cs_ToolbarOpposite);
+		if tbtree>=0 then
+			begin
+				GetWork;
+				if Attr.Status=ws_Open then Application^.InvalidateRect(Attr.Handle,nil)
+			end
 	end;
 
 
@@ -4663,7 +5687,8 @@ procedure TWindow.CreateChildren;
 
 
 procedure TWindow.OpenWindow;
-	var p: PWindow;
+	var p   : PWindow;
+	    pipe: Pipearray;
 
 	begin
 		if Attr.Status=ws_Created then
@@ -4672,7 +5697,8 @@ procedure TWindow.OpenWindow;
 				ChkAlign(Curr);
 				ChkSize(Curr);
 				if bTst(Application^.Attr.Style,as_GrowShrink) then form_box(FMD_GROW,Curr);
-				if wind_open(Attr.gemHandle,Curr.X,Curr.Y,Curr.W,Curr.H)<>0 then
+				if wind_open(Attr.gemHandle,Curr.X,Curr.Y,Curr.W,Curr.H)=0 then Application^.Err:=em_WOpenFailure
+				else
 					begin
 						Attr.Status:=ws_Open;
 						GetWork;
@@ -4686,6 +5712,20 @@ procedure TWindow.OpenWindow;
 							wind_set(Attr.gemHandle,WF_BOTTOM,0,0,0,0)
 						else
 							EnableCrsWatch;
+						if bTst(Class.Style,cs_OLGADocument) then
+							if Application^.OLGAManager>=0 then
+								begin
+									pipe[0]:=OLGA_OPENDOC;
+									pipe[1]:=Application^.apID;
+									pipe[2]:=0;
+									pipe[3]:=0;
+									pipe[4]:=0;
+									pipe[5]:=GetOLGAGroup;
+									pipe[6]:=0;
+									pipe[7]:=0;
+									appl_write(Application^.OLGAManager,16,@pipe)
+								end;
+						Application^.CheckMenuEntries;
 						p:=ChildList;
 						while (p<>nil) do
 							with p^ do
@@ -4693,9 +5733,7 @@ procedure TWindow.OpenWindow;
 									OpenWindow;
 									p:=Nxt
 								end
-					end
-				else
-					Application^.Err:=em_WOpenFailure;
+					end;
 				wind_update(END_UPDATE)
 			end
 		else
@@ -4717,6 +5755,8 @@ procedure TWindow.OpenWindow;
 procedure TWindow.CloseWindow;
 	var p         : PWindow;
 			ICFFreePos: procedure(d1,d2: pointer; d3,d4,d5: longint; fn,posnr: integer);
+			pipe      : Pipearray;
+			q         : integer;
 
 	begin
 		p:=ChildList;
@@ -4726,12 +5766,39 @@ procedure TWindow.CloseWindow;
 					CloseWindow;
 					p:=Nxt
 				end;
+		for q:=0 to XSELMAX do
+			if xselwind[q].window=@self then
+				begin
+					xselwind[q].window:=nil;
+					pipe[0]:=WIN_CLOSED;
+					pipe[1]:=Application^.apID;
+					pipe[2]:=0;
+					pipe[3]:=xselwind[q].fdmwhnd;
+					appl_write(freedom,16,@pipe)
+				end;
 		if Attr.Status=ws_Open then
 			begin
 				wind_update(BEG_UPDATE);
 				GetCurr;
 				if bTst(Application^.Attr.Style,as_GrowShrink) then form_box(FMD_SHRINK,Curr);
-				if wind_close(Attr.gemHandle)<>0 then Attr.Status:=ws_Created
+				if wind_close(Attr.gemHandle)<>0 then
+					begin
+						Attr.Status:=ws_Created;
+						if bTst(Class.Style,cs_OLGADocument) then
+							if Application^.OLGAManager>=0 then
+								if not(Application^.Terminating) then
+									begin
+										pipe[0]:=OLGA_CLOSEDOC;
+										pipe[1]:=Application^.apID;
+										pipe[2]:=0;
+										pipe[3]:=0;
+										pipe[4]:=0;
+										pipe[5]:=GetOLGAGroup;
+										pipe[6]:=0;
+										pipe[7]:=0;
+										appl_write(Application^.OLGAManager,16,@pipe)
+									end
+					end
 				else
 					Application^.Err:=em_WCloseFailure;
 				if icfpos>=0 then
@@ -4743,6 +5810,7 @@ procedure TWindow.CloseWindow;
 						icfpos:=-1
 					end;
 				DisableCrsWatch;
+				Application^.CheckMenuEntries;
 				wind_update(END_UPDATE)
 			end
 	end;
@@ -4780,6 +5848,7 @@ procedure TWindow.Destroy;
 procedure TWindow.RawDestroy;
 	var p: PWindow;
 			ICFFreePos: procedure(d1,d2: pointer; d3,d4,d5: longint; fn,posnr: integer);
+			q: integer;
 
 	begin
 		p:=ChildList;
@@ -4789,6 +5858,7 @@ procedure TWindow.RawDestroy;
 					RawDestroy;
 					p:=Nxt
 				end;
+		for q:=0 to XSELMAX do if xselwind[q].window=@self then xselwind[q].window:=nil;
 		with Attr do
 			begin
 				DisableCrsWatch;
@@ -4814,6 +5884,7 @@ procedure TWindow.Top;
 				wind_update(BEG_UPDATE);
 				wind_set(Attr.gemHandle,WF_TOP,0,0,0,0);
 				EnableCrsWatch;
+				Application^.CheckMenuEntries;
 				wind_update(END_UPDATE)
 			end
 	end;
@@ -4942,6 +6013,30 @@ procedure TWindow.ForceRedraw;
 	end;
 
 
+procedure TWindow.ForceVRedraw;
+	var r   : GRECT;
+	    pipe: Pipearray;
+
+	begin
+		if Attr.Status=ws_Open then
+			if IsModeless then
+				begin
+					wind_update(BEG_UPDATE);
+					GetVWork(r);
+					pipe[0]:=WM_REDRAW;
+					pipe[1]:=Application^.apID;
+					pipe[2]:=0;
+					pipe[3]:=Attr.gemHandle;
+					pipe[4]:=r.X;
+					pipe[5]:=r.Y;
+					pipe[6]:=r.W;
+					pipe[7]:=r.H;
+					appl_write(pipe[1],16,@pipe);
+					wind_update(END_UPDATE)
+				end
+	end;
+
+
 procedure TWindow.SetTitle(ATitle: string);
 
 	begin
@@ -4970,7 +6065,7 @@ procedure TWindow.SetSubTitle(AnInfo: string);
 	end;
 
 
-procedure TWindow.SetGadgets(Style: integer);
+procedure TWindow.SetGadgetsSize(Style: integer; r: GRECT);
 	label _error,_open;
 
 	var wasopen: boolean;
@@ -5009,6 +6104,7 @@ procedure TWindow.SetGadgets(Style: integer);
 							wind_set(Attr.gemHandle,WF_BEVENT,0,0,0,0)
 					end;
 				_open:
+				WMSized(r.X,r.Y,r.W,r.H);
 				if wasopen then
 					begin
 						if wind_open(Attr.gemHandle,Curr.X,Curr.Y,Curr.W,Curr.H)<>0 then
@@ -5032,6 +6128,13 @@ procedure TWindow.SetGadgets(Style: integer);
 				_error:
 				wind_update(END_UPDATE)
 			end
+	end;
+
+
+procedure TWindow.SetGadgets(Style: integer);
+
+	begin
+		SetGadgetsSize(Style,Curr)
 	end;
 
 
@@ -5181,8 +6284,18 @@ procedure TWindow.ChkSize(var r: GRECT);
 
 	begin
 		Calc(WC_WORK,r,ro);
-		GetWorkMin(mix,miy);
-		GetWorkMax(mxx,mxy);
+		if IsIconified then
+			begin
+				mix:=21;
+				miy:=1;
+				mxx:=maxint;
+				mxy:=maxint
+			end
+		else
+			begin
+				GetWorkMin(mix,miy);
+				GetWorkMax(mxx,mxy)
+			end;
 		if (ro.W>mxx) or (ro.H>mxy) then
 			begin
 				if ro.W>mxx then ro.W:=mxx;
@@ -5200,10 +6313,19 @@ procedure TWindow.ChkSize(var r: GRECT);
 
 
 procedure TWindow.GetWorkMin(var minX,minY: integer);
+	var r,ro: GRECT;
 
 	begin
 		minX:=21;
-		minY:=1
+		minY:=1;
+		if Attr.gemHandle>=0 then
+			if Application^.MagiCActive then
+				if wind_get(Attr.gemHandle,WF_MINXYWH,r.X,r.Y,r.W,r.H)<>0 then
+					begin
+						Calc(WC_WORK,r,ro);
+						minX:=max(minX,ro.W);
+						minY:=max(minY,ro.H)
+					end
 	end;
 
 
@@ -5262,9 +6384,10 @@ procedure TWindow.HandleMenu(meNum: integer);
 
 	begin
 		if meNum=Class.MenuTree^[Class.MenuTree^[Class.MenuTree^[ROOT].ob_tail].ob_head].ob_head then
-			with Application^ do
-				if MenuTree<>nil then
-					MNSelected(MenuTree^[MenuTree^[MenuTree^[ROOT].ob_tail].ob_head].ob_head,MenuTree^[MenuTree^[MenuTree^[ROOT].ob_head].ob_head].ob_head,nil,0)
+			if tunemenu then
+				with Application^ do
+					if MenuTree<>nil then
+						MNSelected(MenuTree^[MenuTree^[MenuTree^[ROOT].ob_tail].ob_head].ob_head,MenuTree^[MenuTree^[MenuTree^[ROOT].ob_head].ob_head].ob_head,nil,0)
 	end;
 
 
@@ -5427,7 +6550,11 @@ procedure TWindow.WMClosed;
 				Application^.ChkError;
 				Destroy;
 				if bTst(Class.Style,cs_QuitOnClose) then
-					with Application^ do if ChkError>=em_OutOfMemory then Quit
+					begin
+						with Application^ do if ChkError>=em_OutOfMemory then Quit
+					end
+				else
+					if bTst(Class.Style,cs_FreeOnClose) then Free
 			end
 	end;
 
@@ -5486,7 +6613,7 @@ procedure TWindow.WMHSlid(Value: integer);
 				begin
 					dif:=XRange-XPage-1;
 					if dif<1 then dif:=1;
-					ScrollTo((Value*dif) div 1000,YPos)
+					ScrollTo(round(longint(Value*dif)/1000),YPos)
 				end
 	end;
 
@@ -5500,7 +6627,7 @@ procedure TWindow.WMVSlid(Value: integer);
 				begin
 					dif:=YRange-YPage-1;
 					if dif<1 then dif:=1;
-					ScrollTo(XPos,(Value*dif) div 1000)
+					ScrollTo(XPos,round(longint(Value*dif)/1000))
 				end
 	end;
 
@@ -5517,16 +6644,18 @@ procedure TWindow.WMSized(X,Y,W,H: integer);
 		ChkSize(r);
 		Size(r);
 		if Scroller<>nil then
-			with Scroller^ do
-				begin
-					SetPageSize;
-					SetSBarRange
-				end
+			if not(IsIconified) then
+				with Scroller^ do
+					begin
+						SetPageSize;
+						SetSBarRange
+					end
 	end;
 
 
 procedure TWindow.WMMoved(X,Y,W,H: integer);
-	var r: GRECT;
+	var r      : GRECT;
+			ICFSnap: procedure(d1,d2: pointer; d3,d4,d5: longint; fn,posnr: integer; px,py: PInteger);
 
 	begin
 		r.X:=X;
@@ -5535,13 +6664,26 @@ procedure TWindow.WMMoved(X,Y,W,H: integer);
 		r.H:=H;
 		ChkAlign(r);
 		ChkSize(r);
+		if icfpos>=0 then
+			begin
+				ICFSnap:=icfserver;
+				ICFSnap(nil,nil,0,0,0,ICF_SNAP,icfpos,@r.X,@r.Y)
+			end;
 		Move(r);
 		if Scroller<>nil then
-			with Scroller^ do
-				begin
-					SetPageSize;
-					SetSBarRange
-				end
+			if not(IsIconified) then
+				with Scroller^ do
+					begin
+						SetPageSize;
+						SetSBarRange
+					end
+	end;
+
+
+function TWindow.DoRubbox(mX,mY,KStat: integer): boolean;
+
+	begin
+		DoRubbox:=true
 	end;
 
 
@@ -5557,20 +6699,23 @@ procedure TWindow.WMButton(mX,mY,BStat,KStat,Clicks: integer);
 						valid:=true;
 						if bTst(Class.Style,cs_Rubbox) then
 							begin
-								r.X:=Work.X+Attr.RBox.X1;
-								r.Y:=Work.Y+Attr.RBox.Y1;
-								r.W:=Work.W-Attr.RBox.X2;
-								r.H:=Work.H-Attr.RBox.Y2;
+								GetVWork(r);
 								if (r.W>0) and (r.H>0) then
 									if rc_intersect(Work,r) then
 										if (mX>=r.X1) and (mX<=r.X2) and (mY>=r.Y1) and (mY<=r.Y2) then
-											begin
-												valid:=false;
-												if (KStat and K_SHIFT)>0 then Application^.IconSelect(false,Attr.gemHandle)
-												else
-													Application^.IconSelect(false,id_No);
-												if Application^.Rubbox(Attr.gemHandle,mX,mY,r.X1,r.Y1,r.X2,r.Y2,true,r) then WMRubbox(r)
-											end
+											if DoRubbox(mX,mY,KStat) then
+												begin
+													valid:=false;
+													if (KStat and K_SHIFT)>0 then Application^.IconSelect(false,Attr.gemHandle)
+													else
+														Application^.IconSelect(false,id_No);
+													if Application^.Rubbox(Attr.gemHandle,mX,mY,r.X1,r.Y1,r.X2,r.Y2,true,r) then
+														begin
+															if (r.W=1) and (r.H=1) then valid:=true
+															else
+																WMRubbox(r)
+														end
+												end
 							end;
 						if valid then WMClick(mX,mY,KStat)
 					end
@@ -5640,6 +6785,7 @@ procedure TWindow.WMNewTop;
 procedure TWindow.WMUntopped;
 
 	begin
+		Application^.CheckMenuEntries;
 		DisableCrsWatch
 	end;
 
@@ -5647,6 +6793,7 @@ procedure TWindow.WMUntopped;
 procedure TWindow.WMOnTop;
 
 	begin
+		Application^.CheckMenuEntries;
 		EnableCrsWatch
 	end;
 
@@ -5657,6 +6804,7 @@ procedure TWindow.WMBottomed;
 		if (Attr.Status=ws_Open) and agi.Backdrop then
 			begin
 				wind_set(Attr.gemHandle,WF_BOTTOM,0,0,0,0);
+				Application^.CheckMenuEntries;
 				DisableCrsWatch
 			end
 	end;
@@ -5674,7 +6822,7 @@ procedure TWindow.WMToolbar(Indx,BStat,KStat,Clicks: integer);
 	    onbtn,inrect  : boolean;
 
 	procedure CheckAndDraw(CheckFlag: integer);
-		var box: GRECT;
+		var box,obox: GRECT;
 
 		begin
 			with oadr^ do
@@ -5682,12 +6830,16 @@ procedure TWindow.WMToolbar(Indx,BStat,KStat,Clicks: integer);
 				else
 					ob_state:=ob_state or SELECTED;
 			wind_update(BEG_UPDATE);
+			objc_offset(Class.ToolbarTree,Indx,obox.X,obox.Y);
+			obox.W:=oadr^.ob_width;
+			obox.H:=oadr^.ob_height;
 			HideMouse;
 			wind_get(Attr.gemHandle,WF_FIRSTXYWH,box.X,box.Y,box.W,box.H);
 			while (box.W>0) and (box.H>0) do
 				begin
 					if rc_intersect(SysInfo.Desktop,box) then
-						with box do objc_draw(Class.ToolbarTree,Indx,MAX_DEPTH,X,Y,W,H);
+						if rc_intersect(obox,box) then
+							with obox do objc_draw(Class.ToolbarTree,ROOT,MAX_DEPTH,X,Y,W,H);
 					wind_get(Attr.gemHandle,WF_NEXTXYWH,box.X,box.Y,box.W,box.H)
 				end;
 			ShowMouse;
@@ -5723,7 +6875,7 @@ procedure TWindow.WMToolbar(Indx,BStat,KStat,Clicks: integer);
 					if pe^.IsHelpAvailable then
 						begin
 							graf_mkstate(bx,by,dummy,dummy);
-							Application^.BubbleHelp(bx,by,bbldelay,pe^.GetHelp)
+							Application^.BubbleHelp(bx,by,pe^.GetHelp,false,false)
 						end;
 				exit
 			end;
@@ -5736,7 +6888,9 @@ procedure TWindow.WMToolbar(Indx,BStat,KStat,Clicks: integer);
 		else
 			begin
 				if pe^.GetState=bf_Disabled then exit;
-				oadr:=pe^.ObjAddr
+				if pe^.IsToolbarInstalled then oadr:=pe^.ObjAddr
+				else
+					exit
 			end;
 		wind_update(BEG_UPDATE);
 		wind_update(BEG_MCTRL);
@@ -5874,7 +7028,7 @@ procedure TWindow.WMDragDrop(PipeHnd,OrgID,mX,mY,KStat: integer);
 			if fread(PipeHnd,hdrlen,@dname)<>hdrlen then exit;
 		if dtype='PATH' then
 			begin
-				answer:=StrPTrimF(DDGetPath);
+				answer:=DDGetPath;
 				if length(answer)=0 then answer:=chr(DD_NAK)
 				else
 					answer:=StrPLeft(chr(DD_OK)+answer,dsize);
@@ -5901,15 +7055,25 @@ procedure TWindow.WMDragDrop(PipeHnd,OrgID,mX,mY,KStat: integer);
 
 procedure TWindow.WMIconify(iX,iY,iW,iH: integer);
 	var valid: boolean;
+	    r    : GRECT;
 
 	begin
 		if Attr.Status<>ws_Open then exit;
+		wind_update(BEG_UPDATE);
+		GetCurr;
+		icfcurr:=Curr;
 		form_dial(FMD_SHRINK,iX,iY,iW,iH,Curr.X,Curr.Y,Curr.W,Curr.H);
 		if icfpos>=0 then
 			begin
 				icfstyle:=Attr.Style;
-				SetGadgets(NAME+MOVER);
-				WMSized(iX,iY,iW,iH)
+				with r do
+					begin
+						X:=iX;
+						Y:=iY;
+						W:=iW;
+						H:=iH
+					end;
+				SetGadgetsSize(NAME+MOVER,r)
 			end
 		else
 			begin
@@ -5920,7 +7084,14 @@ procedure TWindow.WMIconify(iX,iY,iW,iH: integer);
 					end
 				else
 					valid:=false;
-				wind_set(Attr.gemHandle,WF_ICONIFY,iX,iY,iW,iH);
+				if (iX<0) or (iY<0) or (iW<1) or (iH<1) then
+					begin
+						wind_close(Attr.gemHandle);
+						wind_set(Attr.gemHandle,WF_ICONIFY,-1,-1,-1,-1);
+						wind_open(Attr.gemHandle,-1,-1,-1,-1)
+					end
+				else
+					wind_set(Attr.gemHandle,WF_ICONIFY,iX,iY,iW,iH);
 				if valid then EnableCrsWatch
 			end;
 		DisposeStr(icntitl);
@@ -5930,27 +7101,47 @@ procedure TWindow.WMIconify(iX,iY,iW,iH: integer);
   	if bTst(Attr.Style,NAME) then
 			wind_set(Attr.gemHandle,WF_NAME,integer(HiWord(@icntitl^[1])),integer(LoWord(@icntitl^[1])),0,0);
 		GetCurr;
-		GetWork
+		GetWork;
+		wind_update(END_UPDATE)
 	end;
 
 
 procedure TWindow.WMUniconify(oX,oY,oW,oH: integer);
 	var ICFFreePos: procedure(d1,d2: pointer; d3,d4,d5: longint; fn,posnr: integer);
 	    valid     : boolean;
+	    dummy,ms  : integer;
+	    r         : GRECT;
 
 	begin
 		if Attr.Status<>ws_Open then exit;
-		form_dial(FMD_GROW,Curr.X,Curr.Y,Curr.W,Curr.H,oX,oY,oW,oH);
+		wind_update(BEG_UPDATE);
+		wind_update(BEG_MCTRL);
 		if icfpos>=0 then
 			begin
+				form_dial(FMD_GROW,Curr.X,Curr.Y,Curr.W,Curr.H,oX,oY,oW,oH);
 				ICFFreePos:=icfserver;
 				ICFFreePos(nil,nil,0,0,0,ICF_FREEPOS,icfpos);
 				icfpos:=-1;
-				SetGadgets(icfstyle);
-				WMSized(oX,oY,oW,oH)
+				with r do
+					begin
+						X:=oX;
+						Y:=oY;
+						W:=oW;
+						H:=oH
+					end;
+				SetGadgetsSize(icfstyle,r)
 			end
 		else
 			begin
+				if (oW<1) or (oH<1) then
+					with icfcurr do
+						begin
+							oX:=X;
+							oY:=Y;
+							oW:=W;
+							oH:=H
+						end;
+				form_dial(FMD_GROW,Curr.X,Curr.Y,Curr.W,Curr.H,oX,oY,oW,oH);
 				if Application^.pcrswatch=@self then
 					begin
 						DisableCrsWatch;
@@ -5965,7 +7156,12 @@ procedure TWindow.WMUniconify(oX,oY,oW,oH: integer);
 			wind_set(Attr.gemHandle,WF_NAME,integer(HiWord(@Attr.Title^[1])),integer(LoWord(@Attr.Title^[1])),0,0);
 		DisposeStr(icntitl);
 		GetCurr;
-		GetWork
+		GetWork;
+		repeat
+			graf_mkstate(dummy,dummy,ms,dummy)
+		until not(bTst(ms,1));
+		wind_update(END_MCTRL);
+		wind_update(END_UPDATE)
 	end;
 
 
@@ -5976,6 +7172,24 @@ procedure TWindow.WMShaded;
 
 
 procedure TWindow.WMUnshaded;
+
+	begin
+	end;
+
+
+procedure TWindow.OLGAUpdated(OrgID,SrvID,InfoNr: integer; Link: string);
+
+	begin
+	end;
+
+
+procedure TWindow.OLGARenameLink(OrgID: integer; OldLink,NewLink: string);
+
+	begin
+	end;
+
+
+procedure TWindow.OLGALinkBroken(OrgID: integer; Link: string);
 
 	begin
 	end;
@@ -6030,6 +7244,29 @@ procedure TWindow.DDFinished(OrgID,mX,mY,KStat: integer);
 	end;
 
 
+function TWindow.FontChanged(OrgID,AnID,ASize,AColor,BackColor,Effects,ARotation,ASkew,HorAlign,VertAlign,AWidth,TrackKern: integer; Size31: fix31; PairKern,cWnd: boolean): boolean;
+	var p: PWindow;
+
+	begin
+		FontChanged:=false;
+		if cWnd then
+			begin
+		  	p:=ChildList;
+		  	while p<>nil do
+	  			begin
+						if p^.FontChanged(OrgId,AnID,ASize,AColor,BackColor,Effects,ARotation,ASkew,HorAlign,VertAlign,AWidth,TrackKern,Size31,PairKern,true) then FontChanged:=true;
+  					p:=p^.Nxt
+	  			end
+			end
+	end;
+
+
+procedure TWindow.ColorID(OrgID,mX,mY,palIndex: integer);
+
+	begin
+	end;
+
+
 procedure TWindow.Cut;
 
 	begin
@@ -6068,6 +7305,49 @@ procedure TWindow.SelectAll;
 procedure TWindow.Print;
 
 	begin
+	end;
+
+
+function TWindow.IsHelpAvailable(mX,mY: integer): boolean;
+
+	begin
+		IsHelpAvailable:=(length(StrPTrimF(GetHelp(mX,mY)))>0)
+	end;
+
+
+function TWindow.GetHelp(mX,mY: integer): string;
+	var pipe: Pipearray;
+	    indx: integer;
+	    pe  : PEvent;
+
+	begin
+		GetHelp:='';
+		if IsIconified then exit;
+		if Class.ToolbarTree<>nil then
+			begin
+				indx:=objc_find(Class.ToolbarTree,ROOT,MAX_DEPTH,mX,mY);
+				if indx>=0 then
+					begin
+						pipe[0]:=GO_PRIVATE;
+						pipe[1]:=Application^.apID;
+						pipe[2]:=0;
+						pipe[3]:=GOP_TOOLBAR;
+						pipe[4]:=tbtree;
+						pipe[5]:=indx;
+						pipe[6]:=K_NORMAL;
+						pipe[7]:=1;
+						pe:=EventList;
+						while pe<>nil do
+							begin
+								if pe^.TestMessage(pipe) then
+									begin
+										if PToolbar(pe)^.IsHelpAvailable then GetHelp:=PToolbar(pe)^.GetHelp;
+										exit
+									end;
+								pe:=pe^.Next
+							end
+					end
+			end
 	end;
 
 
@@ -6384,49 +7664,21 @@ function TWindow.CycleTop(start: PWindow; backwrd: boolean): boolean;
 { *** Objekt TAPPLICATION *** }
 
 constructor TApplication.Init(AName: string);
-	const fontset: AESOBJECT = (ob_next:-1;ob_head:-1;ob_tail:-1;ob_type:G_STRING;
-  		                        ob_flags:LASTOB;ob_state:NORMAL;ob_spec:(free_string:PChar(' '));
-  		                        ob_x:10;ob_y:10;ob_width:1;ob_height:1);
-
   var gval   : longint;
   		dummy,
   		fontid,
   		extrsc : integer;
-  		fdst   : ARRAY_5;
-  		ffx    : ARRAY_3;
+  		rgb    : ARRAY_3;
   		atrb   : ARRAY_10;
+  		ffnd,
   		scmd   : string;
   		pipe   : Pipearray;
   		meta   : METAINFO;
-  		xdsc,
-  		has_agi: boolean;
+  		xdsc   : boolean;
+  		eochr  : string[2];
   		dst    : PChar;
-  		pai    : PAppInfo;
-
-	function appl_xgetinfo(ap_gtype: integer; var ap_gout1,ap_gout2,ap_gout3,ap_gout4: integer): boolean;
-
-		begin
-			appl_xgetinfo:=false;
-			if has_agi then
-				with AES_pb do
-					begin
-						control^[0]:=130;
-						control^[1]:=1;
-						control^[2]:=5;
-						control^[3]:=0;
-						control^[4]:=0;
-						intin^[0]:=ap_gtype;
-						_crystal(@AES_pb);
-						if intout^[0]=1 then
-							begin
-								ap_gout1:=intout^[1];
-								ap_gout2:=intout^[2];
-								ap_gout3:=intout^[3];
-								ap_gout4:=intout^[4];
-								appl_xgetinfo:=true
-							end
-					end
-		end;
+  		fontset: AESOBJECT;
+  		fontted: TEDINFO;
 
 	function objc_xsysvar(what,ver: integer): integer;
 		var objsvar  : boolean;
@@ -6437,7 +7689,7 @@ constructor TApplication.Init(AName: string);
 			if not(bTst(Attr.Style,as_3DFlags)) then exit;
 			if appl_xgetinfo(13,dummy,osv,dummy,dummy) then objsvar:=(osv>0)
 			else
-				objsvar:=(GEMVersion>=$0400);
+				objsvar:=(GEMVersion>=$0340);
 			if objsvar then
 				begin
 					with AES_pb do
@@ -6461,9 +7713,31 @@ constructor TApplication.Init(AName: string);
 				if (TOSVersion>=ver) and (Attr.Colors>=LWhite) then objc_xsysvar:=LWhite
 		end;
 
+	procedure getpoint(height,width,fid: integer; var pt: integer);
+		var dummy,w,h,asked,got: integer;
+
+		begin
+			pt:=-1;
+			vst_font(vdiHandle,fid);
+			asked:=99;
+			got:=asked;
+			while got<=asked do
+				begin
+					asked:=got-1;
+					got:=vst_point(vdiHandle,asked,dummy,h,w,dummy);
+					if h=height then
+						if w=width then
+							begin
+								pt:=got;
+								exit
+							end
+				end
+		end;
+
   begin
     if not(inherited Init) then fail;
     termflag:=false;
+    Terminating:=false;
     appdone:=true;
     Application:=@self;
     if AppFlag then Fsetdta(@apDTA);
@@ -6475,11 +7749,11 @@ constructor TApplication.Init(AName: string);
     icnwnd:=nil;
     allicn:=false;
     nxticn:=nil;
+    startcmd:=nil;
     Name:=NewStr(AName);
     Status:=em_OK;
     Err:=em_OK;
     cliplock:=false;
-    FirstInstance:=false;
     MainWindow:=nil;
     RscPtr:=nil;
     nappgen:=nil;
@@ -6496,19 +7770,23 @@ constructor TApplication.Init(AName: string);
     vdiHandle:=-1;
     aesHandle:=-1;
     AVServer:=id_No;
+    OLGAManager:=id_No;
+    xfont[1]:=-1;
     HMax:=-1;
     ticn:=-1;
     spderr:=0;
     deskinst:=false;
     GDOSActive:=false;
+    BubbleHelpActive:=true;
     MultiTOS:=false;
     IsQSBUsed:=false;
     DlgTop:=-1;
 		MiNTActive:=(MiNTVersion>0);
-		MemoryProtection:=MiNTActive;
+		MagiCActive:=(MagiCVersion>=$0200);
+		NAESActive:=GetCookie('nAES',gval);
+		MemoryProtection:=MiNTActive or MagiCActive;
 		with Attr do
 			begin
-				Instance:=0;
 				if GetCookie('_AKP',gval) then Country:=gval and $ff
 				else
 					Country:=PWord(longint(GetOSHeaderPtr)+28)^ shr 1;
@@ -6524,16 +7802,12 @@ constructor TApplication.Init(AName: string);
 		if GetCookie('FSMC',gval) then SpeedoActive:=(PLongint(gval)^=1599295556)
 		else
 			SpeedoActive:=false;
-		if not(GetCookie('BHLP',gval)) then
-			begin
-				NewCookie('BHLP',$01f4ffff);
-				bbldelay:=500
-			end
-		else
-			bbldelay:=(gval shr 16) and $ffff;
+		if not(GetCookie('BHLP',gval)) then NewCookie('BHLP',$01f4ffff);
 		if GetCookie('LTMF',gval) then ltmf:=PLTMFLY(gval)
 		else
 			ltmf:=nil;
+		stewart:=0;
+		GetCookie('STEW',stewart);
 		fillchar(meta,sizeof(meta),0);
 		metainit(meta);
 		if meta.version=nil then MetaDOS:=nil
@@ -6543,22 +7817,8 @@ constructor TApplication.Init(AName: string);
 				MetaDOS^.Drives:=meta.drivemap;
 				MetaDOS^.Version:=StrPas(meta.version)
 			end;
-		if Name<>nil then
-			begin
-				if MemoryProtection then appinfo:=mxalloc(sizeof(TAppInfo),GLOBAL)
-				else
-					new(appinfo);
-				if appinfo<>nil then
-					begin
-						appinfo^.App:=@self;
-						appinfo^.Ver:=GOVersion;
-						appinfo^.Name:=StrPLeft(Name^,19);
-						appinfo^.Prev:=nil;
-						appinfo^.Next:=nil
-					end
-			end
-		else
-			appinfo:=nil;
+		GlobalAlloc(pointer(bubblebuf),256);
+		pdomain(1);
     InitGem;
     if Status>=em_OK then
     	begin
@@ -6571,21 +7831,19 @@ constructor TApplication.Init(AName: string);
       			MaxPY:=workOut[1];
       			PixW:=workOut[3];
       			PixH:=workOut[4];
+      			hwratio:=round(PixH/PixW);
       			Colors:=workOut[13];
       			MaxColors:=workOut[39];
       			sysFonts:=workOut[10];
       			addFonts:=0;
       			Planes:=GEM_pb.global[10];
-						EventMask:=MU_MESAG or MU_KEYBD or MU_BUTTON;
-						if MultiTOS then
-							begin
-								EventMask:=EventMask or MU_TIMER;
-								poptimer:=300
-							end
+						EventMask:=MU_MESAG or MU_KEYBD or MU_BUTTON or MU_TIMER;
+						if MultiTOS then poptimer:=300
 						else
 							poptimer:=1;
   	    		Style:=as_GrowShrink or as_MenuSeparator or as_MoveDials or as_HandleShutdown or as_3DFlags or as_UseHomeDir;
   	    		if not(AppFlag) then Style:=Style or as_DesktopWindow;
+						extmagxmenu:=(MagiCVersion>=$0514) and (Colors>=LBlack);
 						if rpCmd<>nil then
 							begin
 								scmd:=StrPRight(rpCmd^,length(rpCmd^)-RPos('\',rpCmd^));
@@ -6597,89 +7855,176 @@ constructor TApplication.Init(AName: string);
 				if SpeedoActive then vst_error(vdiHandle,0,spderr);
 				apName:=NewStr(scmd+StrPSpace(8-length(scmd))+#0);
 				GDOSActive:=(vq_gdos<>0);
+				spderr:=0;
+				if GDOSActive then Attr.addFonts:=vst_load_fonts(vdiHandle,0);
+				if spderr<>0 then Err:=em_SpeedoLoadFailure;
 				has_agi:=(GEMVersion>=$0400);
-				if not(has_agi) then has_agi:=(wind_get(0,WF_WINX,dummy,dummy,dummy,dummy)=WF_WINX);
-				if not(has_agi) then
-					if GetCookie('MagX',gval) then
-						if gval<>0 then
-							with PMAGX_COOKIE(gval)^ do
-								if aes_vars<>nil then
-									with aes_vars^ do
-										has_agi:=(magic=-2023406815) and (magic2='MAGX') and (version>=$0200);
 				if not(has_agi) then has_agi:=(appl_find('?AGI')=0);
-				if appl_xgetinfo(0,SysInfo.SFHeight,fontid,dummy,dummy) then
+				if not(has_agi) then has_agi:=MagiCActive;
+				if not(has_agi) then has_agi:=(wind_get(0,WF_WINX,dummy,dummy,dummy,dummy)=WF_WINX);
+				if not(GetCookie('AFnt',longint(paf))) then paf:=nil;
+  		  with fontset do
+  		  	begin
+  		  		ob_next:=0;
+  		  		ob_head:=-1;
+  		  		ob_tail:=-1;
+  		  		ob_type:=G_TEXT;
+  		  		ob_flags:=LASTOB;
+  		  		ob_state:=NORMAL;
+  		  		ob_spec.ted_info:=@fontted;
+  		  		ob_x:=0;
+  		  		ob_y:=0;
+  		  		ob_width:=Attr.charSWidth;
+  		  		ob_height:=Attr.charSHeight
+  		  	end;
+  		  eochr:=' '#0;
+  		  with fontted do
+  		  	begin
+						te_ptext:=@eochr[1];
+						te_ptmplt:=@eochr[2];
+						te_pvalid:=@eochr[2];
+						te_resvd1:=0;
+						te_just:=TE_LEFT;
+						te_color:=0;
+						te_resvd2:=0;
+						te_thickness:=0;
+						te_txtlen:=2;
+						te_tmplen:=1
+  		  	end;
+				if appl_xgetinfo(0,SysInfo.Font.Height,fontid,dummy,dummy) then
 					begin
-						vst_font(vdiHandle,fontid);
-						vst_height(vdiHandle,SysInfo.SFHeight,dummy,dummy,dummy,dummy);
-						vqt_attributes(aesHandle,atrb);
-						SysInfo.SFWidth:=atrb[8]
+						SysInfo.Font.ID:=vst_font(vdiHandle,fontid);
+						vst_height(vdiHandle,SysInfo.Font.Height,dummy,SysInfo.Font.Height,SysInfo.Font.Width,dummy);
+						with SysInfo.Font do getpoint(Height,Width,ID,Point)
 					end
 				else
 					begin
-						objc_draw(@fontset,ROOT,0,0,0,1,1);
+						fontted.te_font:=IBM;
+						objc_draw(@fontset,ROOT,1,0,0,0,0);
 						vqt_attributes(aesHandle,atrb);
-						SysInfo.SFHeight:=atrb[7];
-						SysInfo.SFWidth:=atrb[8];
-						if SysInfo.SFHeight<6 then
+						SysInfo.Font.ID:=vst_font(vdiHandle,atrb[0]);
+						if GetCookie('SMAL',gval) then
+							if ((gval shr 16) and $ffff)<>0 then atrb[7]:=(gval shr 16) and $ffff;
+						vst_height(vdiHandle,atrb[7],dummy,SysInfo.Font.Height,SysInfo.Font.Width,dummy);
+						if SysInfo.Font.Height<5 then
 							begin
-								if (Attr.MaxPX<639) or (Attr.MaxPY<399) then vst_point(vdiHandle,9,dummy,dummy,dummy,dummy)
+								if hwratio>1 then SysInfo.Font.Point:=9
 								else
-									vst_point(vdiHandle,10,dummy,dummy,dummy,dummy);
-								vqt_fontinfo(vdiHandle,dummy,dummy,fdst,SysInfo.SFWidth,ffx);
-								SysInfo.SFHeight:=fdst[4]
+									SysInfo.Font.Point:=10;
+								vst_point(vdiHandle,SysInfo.Font.Point,dummy,SysInfo.Font.Height,SysInfo.Font.Width,dummy)
 							end
+						else
+							with SysInfo.Font do getpoint(Height,Width,ID,Point)
+					end;
+				if appl_xgetinfo(1,SysInfo.SmallFont.Height,fontid,dummy,dummy) then
+					begin
+						SysInfo.SmallFont.ID:=vst_font(vdiHandle,fontid);
+						vst_height(vdiHandle,SysInfo.SmallFont.Height,dummy,SysInfo.SmallFont.Height,SysInfo.SmallFont.Width,dummy);
+						with SysInfo.SmallFont do getpoint(Height,Width,ID,Point)
+					end
+				else
+					begin
+						fontted.te_font:=SMALL;
+						objc_draw(@fontset,ROOT,1,0,0,0,0);
+						vqt_attributes(aesHandle,atrb);
+						SysInfo.SmallFont.ID:=vst_font(vdiHandle,atrb[0]);
+						if GetCookie('SMAL',gval) then
+							if (gval and $ffff)<>0 then atrb[7]:=gval and $ffff;
+						vst_height(vdiHandle,atrb[7],dummy,SysInfo.SmallFont.Height,SysInfo.SmallFont.Width,dummy);
+						if SysInfo.SmallFont.Height<3 then
+							begin
+								SysInfo.SmallFont.Point:=8;
+								vst_point(vdiHandle,SysInfo.SmallFont.Point,dummy,SysInfo.SmallFont.Height,SysInfo.SmallFont.Width,dummy)
+							end
+						else
+							with SysInfo.SmallFont do getpoint(Height,Width,ID,Point);
 					end;
 				if appl_xgetinfo(2,dummy,dummy,fontid,extrsc) then
 					begin
-						agi.ColorIcons:=(fontid=1);
-						agi.ExtRsc:=(extrsc=1)
+						HasColorIcons:=(fontid<>0);
+						agi.ExtRsc:=(extrsc<>0);
 					end
 				else
 					begin
-						agi.ColorIcons:=(GEMVersion>=$0330) and (GEMVersion<>MAGIX);
-						agi.ExtRsc:=agi.ColorIcons
+						agi.ExtRsc:=((GEMVersion>=$0330) and (GEMVersion<>MAGIX)) or ((GEMVersion=MAGIX) and (MagiCVersion>=$0300));
+						HasColorIcons:=false
+					end;
+				if appl_xgetinfo(13,dummy,dummy,dummy,fontid) then
+					begin
+						ExtObjects:=bTst(fontid,$0004);
+						agi.GShortcut:=bTst(fontid,$0008);
+						agi.SysNiceline:={bTst(fontid,$0010) or...} NAESActive or extmagxmenu;
+					end
+				else
+					begin
+						ExtObjects:=(MagiCVersion>=$0300);
+						agi.GShortcut:=(MagiCDate>=$19971030);
+						agi.SysNiceline:=NAESActive or extmagxmenu;
 					end;
 				if appl_xgetinfo(10,fontid,dummy,dummy,dummy) then
 					begin
-						agi.Shutdown:=((fontid and $00ff)>=9);
-						agi.Broadcast:=((fontid and $00ff)>=7)
+						agi.Shutdown:=((fontid and $00ff)>=9) or (MagiCVersion>=$0300);
+						agi.Broadcast:=((fontid and $00ff)>=7) and not(MagiCActive);
 					end
 				else
 					begin
 						agi.Shutdown:=(GEMVersion>=$0400);
-						agi.Broadcast:=agi.Shutdown
+						agi.Broadcast:=agi.Shutdown;
 					end;
 				if appl_xgetinfo(11,extrsc,dummy,agi.Gadgets,fontid) then
 					begin
-						agi.WindUpdate:=(fontid=1);
+						agi.WindUpdate:=(fontid<>0);
 						agi.Owner:=bTst(extrsc,16);
 						agi.BEvent:=bTst(extrsc,32);
 						agi.Backdrop:=bTst(extrsc,64);
-						agi.Iconify:=bTst(extrsc,384) and bTst(agi.Gadgets,1)
+						agi.Iconify:=bTst(extrsc,384) and bTst(agi.Gadgets,1);
 					end
 				else
 					begin
 						agi.WindUpdate:=(GEMVersion>=$0400);
 						agi.Iconify:=(GEMVersion>=$0410);
-						agi.BEvent:=agi.WindUpdate;
 						agi.Backdrop:=agi.WindUpdate;
+						agi.BEvent:=(GEMVersion>=$0331);
 						agi.Owner:=agi.WindUpdate;
 						if GEMVersion>=$0410 then agi.Gadgets:=1
 						else
-							agi.Gadgets:=0
+							agi.Gadgets:=0;
 					end;
-				if appl_xgetinfo(4,dummy,dummy,fontid,dummy) then agi.ApplSearch:=(fontid=1)
+				if appl_xgetinfo(4,dummy,dummy,fontid,dummy) then agi.ApplSearch:=(fontid<>0)
 				else
 					agi.ApplSearch:=(GEMVersion>=$0400);
-				if appl_xgetinfo(9,dummy,dummy,dummy,fontid) then agi.ExtMnSelect:=(fontid=1)
+				if appl_xgetinfo(9,extrsc,dummy,dummy,fontid) then
+					begin
+						agi.MnAttach:=(extrsc<>0);
+						agi.ExtMnSelect:=(fontid<>0);
+					end
 				else
-					agi.ExtMnSelect:=(GEMVersion>=$0330) and (GEMVersion<>MAGIX);
-				if appl_xgetinfo(6,dummy,dummy,fontid,dummy) then agi.MenuInq:=(fontid=1)
+					begin
+						agi.ExtMnSelect:=(GEMVersion>=$0330) and (GEMVersion<>MAGIX);
+						agi.MnAttach:=agi.ExtMnSelect;
+					end;
+				if appl_xgetinfo(6,dummy,dummy,fontid,dummy) then agi.MenuInq:=(fontid<>0)
 				else
 					agi.MenuInq:=MultiTOS;
 				if appl_xgetinfo(3,fontid,dummy,dummy,dummy) then Attr.Country:=fontid;
+				if appl_xgetinfo(AGI_WINX,fontid,dummy,dummy,dummy) then agi.Shading:=bTst(fontid,$0008)
+				else
+					agi.Shading:=false;
     		agi.MultiProto:=(GEM_pb.global[1]<>1) and (agi.ApplSearch or agi.Broadcast);
-				SysInfo.BGDefCol:=objc_xsysvar(BACKGRCOL,$0404);
+    		with SysInfo do
+    			begin
+						BGDefCol:=objc_xsysvar(BACKGRCOL,$0404);
+						if ExtObjects then
+							begin
+								HotKeyCol:=Black;
+								UsrDefCol:=Black;
+							end
+						else
+							begin
+								HotKeyCol:=Red;
+								UsrDefCol:=Blue;
+							end;
+					end;
 				bfalcol:=objc_xsysvar(ACTBUTCOL,$0100);
 				if GetCookie('ICFS',gval) and not(agi.Iconify) then icfserver:=pointer(gval);
 				Clipboard:=GetClipboard;
@@ -6688,6 +8033,16 @@ constructor TApplication.Init(AName: string);
 					begin
 						SysInfo.BGDefCol:=objc_xsysvar(BACKGRCOL,$0404);
 						bfalcol:=objc_xsysvar(ACTBUTCOL,$0100);
+						vq_color(vdiHandle,SysInfo.BGDefCol,1,rgb);
+						SysInfo.DefCol.rgb.reserved:=0;
+						SysInfo.DefCol.rgb.red:=word(((longint(rgb[0])*longint(65535)) div longint(1000)) and $0000ffff);
+						SysInfo.DefCol.rgb.green:=word(((longint(rgb[1])*longint(65535)) div longint(1000)) and $0000ffff);
+						SysInfo.DefCol.rgb.blue:=word(((longint(rgb[2])*longint(65535)) div longint(1000)) and $0000ffff);
+						defcolfg.rgb.reserved:=0;
+						defcolfg.rgb.red:=0;
+						defcolfg.rgb.green:=0;
+						defcolfg.rgb.blue:=0;
+						SysInfo.DefColValid:=HasNewColorFn and (Attr.Colors>=SysInfo.BGDefCol);
 						gval:=0;
 						GetXAccAttr(XAcc);
 						with XAcc do
@@ -6696,14 +8051,13 @@ constructor TApplication.Init(AName: string);
 								if length(AppTypeMR)>0 then inc(gval,length(AppTypeMR)+2);
 								if AppTypeHR<>nil then inc(gval,length(AppTypeHR^)+2);
 								if ExtFeatures<>nil then inc(gval,length(ExtFeatures^)+2);
-								if GenericName<>nil then inc(gval,length(GenericName^)+2)
+								if GenericName<>nil then inc(gval,length(GenericName^)+2);
 							end;
 						if gval>0 then inc(gval,5);
 						xdsc:=(gval>0);
 						inc(gval,length(Name^)+2);
-						if MemoryProtection then xaccname:=mxalloc(gval,GLOBAL)
-						else
-							getmem(xaccname,gval);
+						xaccnlen:=gval;
+						GlobalAlloc(pointer(xaccname),xaccnlen);
 						if xaccname<>nil then
 							begin
 								if xdsc then
@@ -6739,20 +8093,40 @@ constructor TApplication.Init(AName: string);
 								else
 									StrPCopy(xaccname,Name^+#0)
 							end;
-						dummy:=GetCurrInstance;
-	  	      if dummy=0 then InitApplication
-  	  	    else
-  	  	    	if GetCookie('GOBJ',longint(pai)) then
-  	  	    		if pai<>nil then
-				    			begin
-					    			while pai^.Next<>nil do pai:=pai^.Next;
-					    			appinfo^.Prev:=pai;
-					    			pai^.Next:=appinfo;
-		    	  	    	Attr.Instance:=dummy+1
-    	  	    		end;
-    	    	if Status>=em_OK then InitInstance;
-						if agi.MultiProto then
-							if Status>=em_OK then
+						if GetOLGAAttr(OLGA) then Attr.Style:=Attr.Style or as_OLGA;
+	  	      InitApplication;
+    	    	if Status>=em_OK then
+    	    		begin
+								if bTst(Attr.Style,as_OLGA) then
+									begin
+										dummy:=appl_find('OLGA    ');
+										if dummy<0 then
+											begin
+												scmd:=GetEnv('OLGAMANAGER');
+												if length(scmd)>0 then
+													begin
+														ffnd:=StrPUpper(GetFilename(scmd,false));
+														dummy:=appl_find(ffnd+StrPSpace(8-length(ffnd)));
+														if dummy<0 then dummy:=StartApp(scmd,'')
+													end
+											end;
+										if dummy<0 then dummy:=appl_find('OLEMANGR');
+										if dummy<0 then
+											begin
+												scmd:=GetEnv('OLEMANAGER');
+												if length(scmd)>0 then
+													begin
+														ffnd:=StrPUpper(GetFilename(scmd,false));
+														dummy:=appl_find(ffnd+StrPSpace(8-length(ffnd)));
+														if dummy<0 then dummy:=StartApp(scmd,'')
+													end
+											end;
+										if dummy>=0 then OLENew(dummy,0,0,0,0,0)
+									end;
+		    	    	InitInstance
+    	    		end;
+						if Status>=em_OK then
+							if agi.MultiProto then
 						    begin
 									pipe[0]:=ACC_ID;
 									pipe[3]:=integer((XAcc.Version shl 8)+XAcc.MsgGroups);
@@ -6761,17 +8135,19 @@ constructor TApplication.Init(AName: string);
 									pipe[6]:=menuID;
 									pipe[7]:=0;
 									Broadcast(@pipe,true);
-									dummy:=appl_find('GEMINI  ');
-									if dummy<0 then dummy:=appl_find('AVSERVER');
-									if dummy<0 then
+									dummy:=id_No;
+									scmd:=GetEnv('AVSERVER');
+									if length(scmd)>0 then
 										begin
-											scmd:=GetEnv('AVSERVER');
-											if length(scmd)>0 then
-												begin
-													scmd:=StrPLeft(StrPTrimF(scmd),8);
-													dummy:=appl_find(scmd+StrPSpace(8-length(scmd)))
-												end
+											scmd:=StrPUpper(StrPLeft(StrPTrimF(scmd),8));
+											dummy:=appl_find(scmd+StrPSpace(8-length(scmd)))
 										end;
+									if dummy<0 then dummy:=appl_find('AVSERVER');
+									if dummy<0 then dummy:=appl_find('JINNEE  ');
+									if dummy<0 then dummy:=appl_find('THING   ');
+									if dummy<0 then dummy:=appl_find('GEMINI  ');
+									if dummy<0 then dummy:=appl_find('MAGXDESK');
+									if dummy<0 then dummy:=appl_find('EASE    ');
 									if dummy>=0 then
 										begin
 											pipe[0]:=AV_PROTOKOLL;
@@ -6792,30 +8168,26 @@ constructor TApplication.Init(AName: string);
 
 
 destructor TApplication.Done;
-	var ci: integer;
-	    p : PAppInfo;
+	var ci  : integer;
+	    pipe: Pipearray;
 
 	begin
 		appdone:=false;
 		while (MainWindow<>nil) do MainWindow^.Free;
 		if termflag then Terminate;
 		ClosePrivateProfile;
-		if Attr.Instance>0 then
-			if appinfo<>nil then
-				begin
-					if appinfo^.Prev=nil then
-						begin
-							ChangeCookie('GOBJ',longint(appinfo^.Next));
-							if appinfo^.Next<>nil then appinfo^.Next^.Prev:=nil
-						end
-					else
-						if appinfo^.Next=nil then appinfo^.Prev^.Next:=nil
-						else
-							begin
-								appinfo^.Prev^.Next:=appinfo^.Next;
-								appinfo^.Next^.Prev:=appinfo^.Prev
-							end
-				end;
+		if OLGAManager>=0 then
+			begin
+				pipe[0]:=OLE_EXIT;
+				pipe[1]:=apID;
+				pipe[2]:=0;
+				pipe[3]:=0;
+				pipe[4]:=0;
+				pipe[5]:=0;
+				pipe[6]:=0;
+				pipe[7]:=0;
+				appl_write(OLGAManager,16,@pipe)
+			end;
 		if XAccList<>nil then
 			begin
 				XAccList^.ForEach(@SendXAccExit);
@@ -6825,7 +8197,6 @@ destructor TApplication.Done;
 		if not(AppFlag or MultiTOS) then while true do evnt_timer(0,1);
 		if Clipboard<>nil then Clipboard^.Free;
 		ExitGem;
-		Application:=nil;
 		DisposeStr(Attr.rpTail);
 		DisposeStr(Attr.rpCmd);
 		DisposeStr(XAcc.AppTypeHR);
@@ -6834,9 +8205,9 @@ destructor TApplication.Done;
 		DisposeStr(apName);
 		DisposeStr(apPath);
     DisposeStr(Name);
-		if xaccname<>nil then mfree(xaccname);
-		if appinfo<>nil then mfree(appinfo);
-    inherited Done
+		GlobalFree(pointer(xaccname),xaccnlen);
+		Application:=nil;
+    inherited Done;
   end;
 
 
@@ -6873,20 +8244,28 @@ function TApplication.IsIconified: boolean;
 procedure TApplication.LoadResource(FileHiRes,FileLoRes: string);
 	var vald: boolean;
 
+	procedure loadrsc(const s: string);
+	
+		begin
+			if length(s)=0 then exit;
+			if rsrc_load(s)<>0 then vald:=true
+			else
+				if rsrc_load(GetFilename(s,true))<>0 then vald:=true
+		end;
+
 	begin
 		if RscPtr=nil then
 			begin
-				if Attr.MaxPY>=399 then
+				vald:=false;
+				if hwratio<=1 then
 					begin
-						if rsrc_load(FileHiRes)=0 then vald:=(rsrc_load(FileLoRes)<>0)
-						else
-							vald:=true
+						loadrsc(FileHiRes);
+						if not(vald) then loadrsc(FileLoRes)
 					end
 				else
 					begin
-						if rsrc_load(FileLoRes)=0 then vald:=(rsrc_load(FileHiRes)<>0)
-						else
-							vald:=true
+						loadrsc(FileLoRes);
+						if not(vald) then loadrsc(FileHiRes)
 					end;
 				if vald then
 					begin
@@ -6912,9 +8291,9 @@ procedure TApplication.InitResource(AddrHiRes,AddrLoRes: pointer);
 			begin
 			  if AddrHiRes=nil then AddrHiRes:=AddrLoRes;
 			  if AddrLoRes=nil then AddrLoRes:=AddrHiRes;
-			  if Attr.MaxPY>=399 then RscPtr:=AddrHiRes
+			  if hwratio>1 then RscPtr:=AddrLoRes
 			  else
-			    RscPtr:=AddrLoRes;
+			    RscPtr:=AddrHiRes;
 				FixResource(RscPtr,FIXRSC,FIX_ALL);
 				pool:=@RscPtr^.rsd[RscPtr^.rsh.rsh_trindex];
 				with GEM_pb do
@@ -7003,7 +8382,7 @@ function TApplication.GetFStringPtr(Indx: integer): PChar;
 function TApplication.GetFString(Indx: integer): string;
 
 	begin
-		GetFString:=StrPas(GetFStringPtr(Indx))
+		GetFString:=StrPPas(GetFStringPtr(Indx))
 	end;
 
 
@@ -7029,17 +8408,31 @@ procedure TApplication.GetXAccAttr(var XAccAttr: TXAccAttr);
 				Version:=0;
 				MsgGroups:=3;
 				Protocol:=PROTO_XACC or PROTO_AV;
-				AVSrvMsg:=MSG_SENDKEY or MSG_STARTPROG or MSG_EXIT;
-				AVAccMsg:=MSG_START;
+				AVSrvMsg:=MSG_SENDKEY or MSG_STARTPROG or MSG_PATH_UPDATE or MSG_EXIT or MSG_STARTED_4701;
+				AVAccMsg:=MSG_START or MSG_STARTED;
 				AppTypeMR:='';
 				AppTypeHR:=nil;
-				ExtFeatures:=nil;
+				ExtFeatures:=NewStr('FontAck');
 				GenericName:=nil;
 				pXDSC:=nil
 			end;
 		XAccAttr.apID:=apID;
 		XAccAttr.menuID:=menuID;
 		XAccAttr.Name:=Name
+	end;
+
+
+function TApplication.GetOLGAAttr(var OLGAAttr: TOLGAAttr): boolean;
+
+	begin
+		with OLGAAttr do
+			begin
+				Msg:=OL_PEER or OL_IDLE;
+				Protocol:=0;
+				ManagerMsg:=0;
+				ManagerProtocol:=0
+			end;
+		GetOLGAAttr:=true
 	end;
 
 
@@ -7324,7 +8717,8 @@ procedure TApplication.LoadMenu(Indx: integer);
 										pipe[3]:=GOP_SETQUIT;
 										pipe[4]:=menuentries^.Quit.Entry;
 										pipe[5]:=menuentries^.Quit.Title;
-										appl_write(apID,16,@pipe)
+										appl_write(apID,16,@pipe);
+										CheckMenuEntries
 									end
 							end
 					end
@@ -7387,7 +8781,9 @@ procedure TApplication.InitGEM;
   		begin
   			if not(AutoFolder) then
   				begin
-		  			if (Attr.Country=FRG) or (Attr.Country=SWG) then
+		  			if Attr.Country=FRA then
+		  				writeln(#27'p'+Name^+#27'q: AES inactif -> Quitter!')
+		  			else if (Attr.Country=FRG) or (Attr.Country=SWG) then
   						writeln(#27'p'+Name^+#27'q: AES nicht aktiv -> Abbruch!')
   					else
 		  				writeln(#27'p'+Name^+#27'q: AES not active -> quit!')
@@ -7403,17 +8799,14 @@ procedure TApplication.InitGEM;
       	if AppFlag then BusyMouse;
     		MultiTOS:=(GEMVersion>=$0400) and (GEM_pb.global[1]=-1);
     		Multitasking:=(GEM_pb.global[1]<>1);
-				if MiNTActive or MultiTOS then
-					begin
-						Psignal(SIGTERM,@SigHandler);
-						Psignal(SIGQUIT,@SigHandler)
-					end;
+				Psignal(SIGTERM,@SigHandler);
+				Psignal(SIGQUIT,@SigHandler);
       	if i<>0 then
       		begin
       			if paramcount>0 then
       				if length(StrPTrimF(paramstr(0)))<>0 then goto _notempty;
 		      	StrPTrim(scmd);
-						stail:=StrPTrimF(System.copy(stail,2,Min(ord(stail[1]),125)))
+						stail:=StrPTrimF(StrPMid(stail,2,Min(ord(stail[1]),125)))
       		end
       	else
       		begin
@@ -7457,7 +8850,8 @@ procedure TApplication.InitGEM;
 				Attr.rpCmd:=NewStr(scmd);
 				if length(stail)>0 then Attr.rpTail:=NewStr(stail);
     		aesHandle:=graf_handle(Attr.charSWidth,Attr.charSHeight,Attr.boxSWidth,Attr.boxSHeight);
-	    	for i:=0 to 9 do workIn[i]:=1;
+	    	for i:=1 to 9 do workIn[i]:=1;
+	    	workIn[0]:=getrez+2;
     		workIn[10]:=RC;
     		vdiHandle:=aesHandle;
     		v_opnvwk(workIn,vdiHandle,workOut);
@@ -7508,8 +8902,7 @@ procedure	TApplication.ExitGEM;
   		end;
 	  if vdiHandle>0 then
 	  	begin
-				if bTst(Attr.Style,as_LoadFonts) then
-					if GDOSActive then vst_unload_fonts(vdiHandle,0);
+				if GDOSActive then vst_unload_fonts(vdiHandle,0);
 			  v_clsvwk(vdiHandle);
 			  vdiHandle:=-1
 			end;
@@ -7522,16 +8915,15 @@ procedure	TApplication.ExitGEM;
 
 
 procedure TApplication.SetupVDI;
-	var dname: string[33];
-	    dummy: integer;
+	var dummy  : integer;
+	    ewrkout: workout_ARRAY;
 
 	begin
-		spderr:=0;
-		if GDOSActive then
-			if bTst(Attr.Style,as_LoadFonts) then Attr.addFonts:=vst_load_fonts(vdiHandle,0);
-		if spderr<>0 then Err:=em_SpeedoLoadFailure;
-		vst_font(vdiHandle,vqt_name(vdiHandle,1,dname));
-		vst_height(vdiHandle,SysInfo.SFHeight,Attr.charWidth,Attr.charHeight,Attr.boxWidth,Attr.boxHeight);
+		vq_extnd(vdiHandle,1,ewrkout);
+		CanScaleIMG:=bTst(ewrkout[30],1);
+		CanTransferBits:=bTst(ewrkout[30],2);
+		HasNewColorFn:=bTst(ewrkout[32],1);
+		SetSystemFont(vdiHandle,Attr.charWidth,Attr.charHeight,Attr.boxWidth,Attr.boxHeight);
 		vst_alignment(vdiHandle,TA_LEFT,TA_BASELINE,dummy,dummy);
 		vsl_udsty(vdiHandle,$5555);
 		vsf_interior(vdiHandle,FIS_HOLLOW);
@@ -7542,25 +8934,8 @@ procedure TApplication.SetupVDI;
 
 
 procedure TApplication.InitApplication;
-	var p: PAppInfo;
 
   begin
-    FirstInstance:=true;
-    if appinfo<>nil then
-	    if Attr.Instance=0 then
-	    	begin
-	    		p:=nil;
-	    		if not(GetCookie('GOBJ',longint(p))) then
-	    			if not(NewCookie('GOBJ',0)) then exit;
-	    		if p=nil then ChangeCookie('GOBJ',longint(appinfo))
-	    		else
-	    			begin
-		    			while p^.Next<>nil do p:=p^.Next;
-		    			appinfo^.Prev:=p;
-		    			p^.Next:=appinfo
-	    			end;
-	    		Attr.Instance:=1
-	    	end
   end;
 
 
@@ -7572,7 +8947,9 @@ procedure TApplication.InitInstance;
 				if (AppFlag or MultiTOS) then pquit:=new(PQKey,Init(@self,K_CTRL,Ctrl_Quit,-1,-1));
 				if bTst(Attr.Style,as_HandleShutdown) then
 					if agi.Shutdown then shel_write(9,1,0,'','');
-				InitMainWindow
+				wind_update(END_UPDATE);
+				InitMainWindow;
+				wind_update(BEG_UPDATE)
 			end
   end;
 
@@ -7582,23 +8959,6 @@ procedure TApplication.InitMainWindow;
 	begin
 		new(PWindow,Init(nil,Name^));
 		if (MainWindow=nil) or (Err<em_OK) then Status:=em_InvalidMainWindow
-	end;
-
-
-function TApplication.GetCurrInstance: integer;
-	var ret: integer;
-	    p  : PAppInfo;
-
-	begin
-		ret:=0;
-		if appinfo<>nil then
-			if GetCookie('GOBJ',longint(p)) then
-				while p<>nil do
-					begin
-						if appinfo^.Name=p^.Name then inc(ret);
-						p:=p^.Next
-					end;
-		GetCurrInstance:=ret
 	end;
 
 
@@ -7684,10 +9044,12 @@ function TApplication.GetPWindow(Hnd: HWnd): PWindow;
 
 
 function TApplication.GetPTopWindow: PWindow;
-	var top,dummy: integer;
+	var top,under,dummy: integer;
 
 	begin
-		wind_get(DESK,WF_TOP,top,dummy,dummy,dummy);
+		under:=DESK;
+		wind_get(DESK,WF_TOP,top,dummy,under,dummy);
+		if top<0 then top:=under;
 		GetPTopWindow:=GetGPWindow(top)
 	end;
 
@@ -7755,13 +9117,10 @@ procedure TApplication.MUKeybd(data: TEventData);
 				begin
 					ICFGetPos:=icfserver;
 					pw^.icfpos:=ICFGetPos(nil,nil,0,0,0,ICF_GETPOS,@x,@y,@w,@h);
-					if pw^.icfpos>=0 then
-						begin
-							pw^.GetCurr;
-							pw^.icfcurr:=pw^.Curr;
-							pw^.WMIconify(x,y,w,h)
-						end
+					if pw^.icfpos>=0 then pw^.WMIconify(x,y,w,h)
 				end
+			else
+				if agi.Iconify then pw^.WMIconify(-1,-1,-1,-1)
 		end;
 
 	procedure WCycle;
@@ -7892,15 +9251,10 @@ procedure TApplication.MUKeybd(data: TEventData);
 									exit
 								end
 							end;
-						if not(pw^.IsIconified) then
+						if not(pw^.IsIconified or pw^.IsShaded) then
 							begin
 								if data.KStat=K_CTRL then
 									case data.Key of
-									Ctrl_Iconify:
-										begin
-											WIconify;
-											exit
-										end;
 									Ctrl_Fuller:
 										begin
 											if not(bTst(pw^.Attr.Style,FULLER)) then exit;
@@ -7943,12 +9297,21 @@ procedure TApplication.MUKeybd(data: TEventData);
 										end
 									end
 								else
-									if data.KStat=K_NORMAL then
-										if data.Key=S_Delete then
-											begin
-												pw^.Delete;
-												exit
-											end;
+									if data.KStat=K_CTRL+K_ALT then
+										begin
+											if data.Key=CtrlAlt_Iconify then
+												begin
+													WIconify;
+													exit
+												end
+										end
+									else
+										if data.KStat=K_NORMAL then
+											if data.Key=S_Delete then
+												begin
+													pw^.Delete;
+													exit
+												end;
 								p:=pw^.EventList;
 								while p<>nil do
 									begin
@@ -7957,8 +9320,8 @@ procedure TApplication.MUKeybd(data: TEventData);
 									end
 							end
 						else
-							if (data.KStat=K_CTRL) and ((data.Key=Ctrl_Iconify) or (data.Key=Ctrl_Fuller)) then
-								if pw^.icfpos>=0 then
+							if ((data.KStat=K_CTRL) and (data.Key=Ctrl_Fuller)) or ((data.KStat=K_CTRL+K_ALT) and (data.Key=CtrlAlt_Iconify)) then
+								if (pw^.icfpos>=0) or agi.Iconify then
 									begin
 										with pw^.icfcurr do pw^.WMUniconify(X,Y,W,H);
 										exit
@@ -8063,7 +9426,8 @@ procedure TApplication.MUButton(data: TEventData);
 															begin
 																tbi:=objc_find(Class.MenuTree,Class.MenuTree^[ROOT].ob_head,MAX_DEPTH,data.mX,data.mY);
 																pdx:=tbi-Class.MenuTree^[Class.MenuTree^[Class.MenuTree^[ROOT].ob_head].ob_head].ob_head;
-																if pdx>=0 then
+																if pdx<0 then Top
+																else
 																	begin
 																		wind_update(BEG_UPDATE);
 																		wind_update(BEG_MCTRL);
@@ -8075,7 +9439,7 @@ procedure TApplication.MUButton(data: TEventData);
 																				rh:=Class.MenuTree^[rh].ob_next;
 																				dec(pdx)
 																			end;
-																		new(ppop,Init(pw,id_No,rh));
+																		new(ppop,Init(pw,id_No,rh,id_No));
 																		pdx:=id_No;
 																		if ppop<>nil then
 																			with ppop^ do
@@ -8084,7 +9448,8 @@ procedure TApplication.MUButton(data: TEventData);
 																					objc_offset(PopTree,tbi,pX,pY);
 																					pY:=PopTree^[PopTree^[ROOT].ob_head].ob_height+ry+1;
 																					if PopTree^[pIndex].ob_height+pY>Application^.Attr.MaxPY then pY:=ry-PopTree^[pIndex].ob_height-1;
-																					shadow:=false;
+																					Shadow:=false;
+																					lfrtcrs:=false;
 																					wait0:=false;
 																					pdx:=Execute;
 																					Free
@@ -8104,41 +9469,39 @@ procedure TApplication.MUButton(data: TEventData);
 																		if pdx>=0 then
 																			begin
 																				inc(pdx,Class.MenuTree^[rh].ob_head);
-																				q:=Class.MenuTree^[Class.MenuTree^[Class.MenuTree^[Class.MenuTree^[Class.MenuTree^[ROOT].ob_tail].ob_head].ob_head].ob_next].ob_next;
-																				if pdx=q then
+																				if tunemenu then
 																					begin
-																						data.Key:=Ctrl_Cycle;
-																						data.KStat:=K_CTRL;
-																						MUKeybd(data);
-																						goto _noentry
-																					end;
-																				q:=Class.MenuTree^[q].ob_next;
-																				if pdx=q then
-																					begin
-																						WMFulled;
-																						goto _noentry
-																					end;
-																				q:=Class.MenuTree^[q].ob_next;
-																				if pdx=q then
-																					begin
-																						if icfserver<>nil then
+																						q:=Class.MenuTree^[Class.MenuTree^[Class.MenuTree^[Class.MenuTree^[Class.MenuTree^[ROOT].ob_tail].ob_head].ob_head].ob_next].ob_next;
+																						if pdx=q then
 																							begin
-																								ICFGetPos:=icfserver;
-																								icfpos:=ICFGetPos(nil,nil,0,0,0,ICF_GETPOS,@rx,@ry,@rw,@rh);
-																								if icfpos>=0 then
-																									begin
-																										GetCurr;
-																										icfcurr:=Curr;
-																										WMIconify(rx,ry,rw,rh)
-																									end
+																								data.Key:=Ctrl_Cycle;
+																								data.KStat:=K_CTRL;
+																								MUKeybd(data);
+																								goto _noentry
 																							end;
-																						goto _noentry
-																					end;
-																				q:=Class.MenuTree^[q].ob_next;
-																				if pdx=q then
-																					begin
-																						WMBottomed;
-																						goto _noentry
+																						q:=Class.MenuTree^[q].ob_next;
+																						if pdx=q then
+																							begin
+																								WMFulled;
+																								goto _noentry
+																							end;
+																						q:=Class.MenuTree^[q].ob_next;
+																						if pdx=q then
+																							begin
+																								if icfserver<>nil then
+																									begin
+																										ICFGetPos:=icfserver;
+																										icfpos:=ICFGetPos(nil,nil,0,0,0,ICF_GETPOS,@rx,@ry,@rw,@rh);
+																										if icfpos>=0 then WMIconify(rx,ry,rw,rh)
+																									end;
+																								goto _noentry
+																							end;
+																						q:=Class.MenuTree^[q].ob_next;
+																						if pdx=q then
+																							begin
+																								WMBottomed;
+																								goto _noentry
+																							end
 																					end;
 																				MNSelected(pdx,tbi,Class.MenuTree,rh);
 																				_noentry:
@@ -8218,8 +9581,15 @@ procedure TApplication.MUM1(data: TEventData);
 			end;
 		if not(found) then HandleM1(data.mX,data.mY,data.BStat,data.KStat)
 	end;
-	
-	
+
+
+function TApplication.ReadExtMessage(Pipe: Pipearray): boolean;
+
+	begin
+		ReadExtMessage:=false
+	end;
+
+
 procedure TApplication.MUM2(data: TEventData);
 	var p         : PEvent;
 	    pw        : PWindow;
@@ -8254,13 +9624,17 @@ procedure TApplication.MUM2(data: TEventData);
 
 
 procedure TApplication.MUMesag(data: TEventData);
-	label _notop;
+	label _notop,_fsende;
 
 	var p,pw        : PWindow;
 	    pg          : PEvent;
-	    found       : boolean;
+	    found,pkrn  : boolean;
 	    ret,dummy,ks,
 	    rx,ry,rw,rh : integer;
+	    fx31        : fix31;
+	    slen        : longint;
+	    pc,pc2,pc3,
+	    ps,pc4      : PChar;
 			ICFGetPos   : function(d1,d2: pointer; d3,d4,d5: longint; fn: integer; px,py,pw,ph: pointer): integer;
 
 	procedure shwr_ap_tfail(err: integer);
@@ -8313,6 +9687,106 @@ procedure TApplication.MUMesag(data: TEventData);
 			appl_write(data.Pipe[1],16,@pipe)
 		end;
 
+	procedure olgareply(msg: integer);
+		var pipe: Pipearray;
+		    q   : integer;
+
+		begin
+			pipe[0]:=msg;
+			pipe[1]:=apID;
+			pipe[2]:=0;
+			for q:=3 to 7 do pipe[q]:=data.Pipe[q];
+			appl_write(data.Pipe[1],16,@pipe)
+		end;
+
+	procedure ackolga(msg: integer);
+		var pipe: Pipearray;
+		    q   : integer;
+
+		begin
+			pipe[0]:=OLGA_ACK;
+			pipe[1]:=apID;
+			pipe[2]:=0;
+			pipe[7]:=msg;
+			for q:=3 to 6 do pipe[q]:=data.Pipe[q];
+			appl_write(data.Pipe[1],16,@pipe)
+		end;
+	
+	procedure idlereply;
+		var pipe: Pipearray;
+	
+		begin
+			pipe[0]:=OLGA_IDLE;
+			pipe[1]:=apID;
+			pipe[2]:=0;
+			pipe[3]:=0;
+			pipe[4]:=data.Pipe[4];
+			pipe[5]:=data.Pipe[5];
+			pipe[6]:=data.Pipe[6];
+			pipe[7]:=data.Pipe[7];
+			appl_write(data.Pipe[1],16,@pipe)
+		end;
+
+	procedure avstarted(oid,p3,p4: integer);
+		var pipe: Pipearray;
+
+		begin
+			pipe[0]:=AV_STARTED;
+			pipe[1]:=apID;
+			pipe[2]:=0;
+			pipe[3]:=p3;
+			pipe[4]:=p4;
+			pipe[5]:=0;
+			pipe[6]:=0;
+			pipe[7]:=0;
+			appl_write(oid,16,@pipe)
+		end;
+
+	procedure fontack(ret: boolean);
+		var pipe: Pipearray;
+
+		begin
+			pipe[0]:=FONT_ACK;
+			pipe[1]:=apID;
+			pipe[2]:=0;
+			if ret then pipe[3]:=1
+			else
+				pipe[3]:=0;
+			pipe[4]:=0;
+			pipe[5]:=0;
+			pipe[6]:=0;
+			pipe[7]:=0;
+			appl_write(data.Pipe[1],16,@pipe)
+		end;
+
+	procedure testexist(pfn: PChar);
+		var fname: string;
+
+		begin
+			fname:=GetQuotedName(pfn);
+			if length(fname)=0 then exit;
+			if not(Exist(fname)) then
+				begin
+					fname:=GetFilename(fname,true);
+					if length(fname)=0 then exit;
+					if Attr.Country=FRA then
+						Alert(nil,1,NOTE,'"'+fname+'" n''existe pas.','  &OK  ')
+					else if (Attr.Country=FRG) or (Attr.Country=SWG) then
+						Alert(nil,1,NOTE,'"'+fname+'" existiert nicht.','  &OK  ')
+					else
+						Alert(nil,1,NOTE,'"'+fname+'" does not exist.','  &OK  ')
+				end
+			else
+				begin
+					if pc4<>pc2 then
+						begin
+							pc4^:=' ';
+							inc(longint(pc4))
+						end;
+					pc4:=StrECopy(pc4,pc3)
+				end
+		end;
+
 	begin
 		wind_update(BEG_UPDATE);
 		if MessageBuffer<>nil then
@@ -8321,12 +9795,19 @@ procedure TApplication.MUMesag(data: TEventData);
 				MessageBuffer:=nil
 			end;
 		MessageBLen:=data.Pipe[2];
-		if MessageBLen>0 then
+		if MessageBLen<>0 then
 			begin
-				if data.Pipe[0]<>24 then getmem(MessageBuffer,MessageBLen);
-				if MessageBuffer<>nil then appl_read(apID,MessageBLen,MessageBuffer)
+				if MessageBLen<0 then MessageBLen:=0
 				else
-					MessageBLen:=0
+					if ReadExtMessage(data.Pipe) then
+						begin
+							getmem(MessageBuffer,MessageBLen);
+							if MessageBuffer<>nil then appl_read(apID,MessageBLen,MessageBuffer)
+							else
+								MessageBLen:=0
+						end
+					else
+						MessageBLen:=0
 			end;
 		case data.Pipe[0] of
 		MN_SELECTED:
@@ -8351,17 +9832,18 @@ procedure TApplication.MUMesag(data: TEventData);
 									goto _notop
 								end;
 						if bTst(p^.Class.Style,cs_WorkBackground) then
-							begin
-								graf_mkstate(data.mX,data.mY,dummy,data.KStat);
-								wind_get(p^.Attr.gemHandle,WF_WORKXYWH,rx,ry,rw,rh);
-								if Between(data.mX,rx,rx+rw-1) and Between(data.mY,ry,ry+rh-1) then
-									begin
-										data.BStat:=1;
-										data.Clicks:=1;
-										MUButton(data);
-										goto _notop
-									end
-							end;
+							if not(agi.BEvent) then
+								begin
+									graf_mkstate(data.mX,data.mY,dummy,data.KStat);
+									wind_get(p^.Attr.gemHandle,WF_WORKXYWH,rx,ry,rw,rh);
+									if Between(data.mX,rx,rx+rw-1) and Between(data.mY,ry,ry+rh-1) then
+										begin
+											data.BStat:=1;
+											data.Clicks:=1;
+											MUButton(data);
+											goto _notop
+										end
+								end;
 						p^.WMTopped;
 						_notop:
 					end
@@ -8378,12 +9860,7 @@ procedure TApplication.MUMesag(data: TEventData);
 									begin
 										ICFGetPos:=icfserver;
 										p^.icfpos:=ICFGetPos(nil,nil,0,0,0,ICF_GETPOS,@data.Pipe[4],@data.Pipe[5],@data.Pipe[6],@data.Pipe[7]);
-										if p^.icfpos>=0 then
-											begin
-												p^.GetCurr;
-												p^.icfcurr:=p^.Curr;
-												p^.WMIconify(data.Pipe[4],data.Pipe[5],data.Pipe[6],data.Pipe[7])
-											end
+										if p^.icfpos>=0 then p^.WMIconify(data.Pipe[4],data.Pipe[5],data.Pipe[6],data.Pipe[7])
 									end
 							end
 						else
@@ -8551,8 +10028,97 @@ procedure TApplication.MUMesag(data: TEventData);
 			CHExit(data.Pipe[3],data.Pipe[4]);
 		SH_WDRAW:
 			SHWDraw(data.Pipe[3]);
+		WinChangeFont:
+			begin
+				p:=GetGPWindow(data.Pipe[3]);
+				if p<>nil then p^.FontChanged(data.Pipe[1],data.Pipe[4],data.Pipe[5],data.Pipe[6],-1,data.Pipe[7],-1,-32768,-1,-1,0,0,0,false,false)
+			end;
+		XFONT_CHANGED:
+			xfont:=data.Pipe;
+		FONT_CHANGED:
+			begin
+				found:=false;
+				if data.Pipe[1]<>xfont[1] then
+					begin
+						xfont[3]:=0;
+						xfont[4]:=0;
+						xfont[5]:=-1;
+						xfont[6]:=-32768;
+						xfont[7]:=0
+					end;
+				pkrn:=bTst(word(xfont[7]),32768);
+				fx31:=fix31(Ptr(word(xfont[3]),word(xfont[4])));
+				if data.Pipe[3]<0 then
+					begin
+				  	p:=MainWindow;
+				  	while p<>nil do
+			  			with p^ do
+				  			begin
+									if FontChanged(data.Pipe[1],data.Pipe[4],data.Pipe[5],data.Pipe[6],-1,data.Pipe[7],xfont[5],xfont[6],-1,-1,xfont[7] and $1fff,(xfont[7] shr 13) and $0003,fx31,pkrn,true) then found:=true;
+			  					p:=Nxt
+				  			end
+					end
+				else
+					begin
+						p:=GetGPWindow(data.Pipe[3]);
+						if p<>nil then
+							if p^.FontChanged(data.Pipe[1],data.Pipe[4],data.Pipe[5],data.Pipe[6],-1,data.Pipe[7],xfont[5],xfont[6],-1,-1,xfont[7] and $1fff,(xfont[7] shr 13) and $0003,fx31,pkrn,false) then found:=true
+					end;
+				fontack(found);
+				xfont[1]:=-1
+			end;
+		FILE_SELECTED:
+			begin
+				dummy:=(data.Pipe[3] shr 8) and $007f;
+				if (dummy<0) or (dummy>XSELMAX+1) then dummy:=XSELMAX+1;
+				if (data.Pipe[6]<>0) or (data.Pipe[7]<>0) then
+					begin
+						slen:=StrLen(PChar(Ptr(word(data.Pipe[6]),word(data.Pipe[7]))))+1;
+						getmem(pc,slen);
+						if pc<>nil then
+							begin
+								StrCopy(pc,PChar(Ptr(word(data.Pipe[6]),word(data.Pipe[7]))));
+								if bTst(word(data.Pipe[3]),32768) then
+									begin
+										getmem(pc2,slen);
+										if pc2=nil then goto _fsende;
+										pc3:=pc;
+										pc4:=pc2;
+										ps:=StrScanQuote(pc3);
+										while ps<>nil do
+											begin
+												ps^:=#0;
+												testexist(pc3);
+												pc3:=PChar(longint(ps)+1);
+												ps:=StrScanQuote(pc3)
+											end;
+										testexist(pc3);
+										if pc4=pc2 then goto _fsende;
+										pc3:=pc2
+									end
+								else
+									begin
+										pc2:=nil;
+										pc3:=pc
+									end;
+								FileSelected(xselwind[dummy].window,data.Pipe[1],byte(data.Pipe[3] and $00ff),StrPPas(Ptr(word(data.Pipe[4]),word(data.Pipe[5]))),pc3);
+								_fsende:
+								if pc2<>nil then freemem(pc2,slen);
+								freemem(pc,slen)
+							end
+					end;
+				xselwind[dummy].window:=nil
+			end;
 		SC_CHANGED:
 			SCChanged(data.Pipe[1],word(data.Pipe[3]),StrPTrimF(chr((word(data.Pipe[4]) shr 8) and $00ff)+chr(data.Pipe[4] and $00ff)+chr((word(data.Pipe[5]) shr 8) and $00ff)+chr(data.Pipe[5] and $00ff)));
+		PRN_CHANGED:
+			PRNChanged(data.Pipe[1],data.Pipe[3],data.Pipe[4]);
+		FNT_CHANGED:
+			FNTChanged(data.Pipe[1]);
+		COLORS_CHANGED:
+			ColorsChanged(data.Pipe[1]);
+		COLOR_ID:
+			ColorID(data.Pipe[1],data.Pipe[3],data.Pipe[4],data.Pipe[5]);
 		ACC_ID:
 			XAccID(data.Pipe[1],data.Pipe[6],byte(data.Pipe[3] and $00ff),byte((data.Pipe[3] and $ff00) shr 8),Ptr(word(data.Pipe[4]),word(data.Pipe[5])));
 		ACC_ACC:
@@ -8572,31 +10138,38 @@ procedure TApplication.MUMesag(data: TEventData);
 		ACC_OPEN,ACC_CLOSE,ACC_ACK:
 			HandleXAcc(data.Pipe);
 		AV_PROTOKOLL:
-			AVProtokoll(data.Pipe[1],data.Pipe[3],StrPas(Ptr(word(data.Pipe[6]),word(data.Pipe[7]))));
+			AVProtokoll(data.Pipe[1],word(data.Pipe[3]),StrPPas(Ptr(word(data.Pipe[6]),word(data.Pipe[7]))));
 		VA_PROTOSTATUS:
-			VAProtoStatus(data.Pipe[1],data.Pipe[3],StrPas(Ptr(word(data.Pipe[6]),word(data.Pipe[7]))));
+			VAProtoStatus(data.Pipe[1],word(data.Pipe[3]),StrPPas(Ptr(word(data.Pipe[6]),word(data.Pipe[7]))));
 		AV_SENDKEY:
 			AVSendKey(data.Pipe[3],data.Pipe[4]);
+		AV_SENDCLICK:
+			AVSendClick(data.Pipe[3],data.Pipe[4],data.Pipe[5],data.Pipe[6],data.Pipe[7]);
 		VA_START:
-			if not(AppFlag) then
-				begin
-					if (data.Pipe[3]=0) and (data.Pipe[4]=0) then VAStart(data.Pipe[1],'')
-					else
-						VAStart(data.Pipe[1],StrPas(Ptr(word(data.Pipe[3]),word(data.Pipe[4]))))
-				end;
+			begin
+				VAStart(data.Pipe[1],Ptr(word(data.Pipe[3]),word(data.Pipe[4])));
+				avstarted(data.Pipe[1],data.Pipe[3],data.Pipe[4])
+			end;
 		AV_STARTPROG:
 			if AppFlag then
-				begin
-					if (data.Pipe[3]=0) and (data.Pipe[4]=0) then AVStartProg(data.Pipe[1],data.Pipe[7],'','')
-					else
-						if (data.Pipe[5]=0) and (data.Pipe[6]=0) then AVStartProg(data.Pipe[1],data.Pipe[7],StrPas(Ptr(word(data.Pipe[3]),word(data.Pipe[4]))),'')
-						else
-							AVStartProg(data.Pipe[1],data.Pipe[7],StrPas(Ptr(word(data.Pipe[3]),word(data.Pipe[4]))),StrPas(Ptr(word(data.Pipe[5]),word(data.Pipe[6]))))
-				end;
+				AVStartProg(data.Pipe[1],data.Pipe[7],StrPPas(Ptr(word(data.Pipe[3]),word(data.Pipe[4]))),StrPPas(Ptr(word(data.Pipe[5]),word(data.Pipe[6]))));
 		AV_EXIT:
 			AVExit(data.Pipe[3]);
-		AV_GETSTATUS..VA_SETSTATUS,AV_ASKFILEFONT..VA_WINDOPEN,VA_PROGSTART..VA_DRAG_COMPLETE:
+		AV_GETSTATUS..VA_SETSTATUS,AV_ASKFILEFONT..VA_WINDOPEN,VA_PROGSTART..VA_DRAG_COMPLETE,AV_STARTED..VA_XOPEN:
 			HandleAV(data.Pipe);
+		BUBBLEGEM_REQUEST:
+			begin
+				if DlgTop<0 then
+					begin
+						p:=GetGPWindow(data.Pipe[3]);
+						if p<>nil then
+							if p^.Attr.Status=ws_Open then
+								if p^.Attr.gemHandle>=0 then
+									if not(p^.IsShaded) then
+										if p^.IsHelpAvailable(data.Pipe[4],data.Pipe[5]) then
+											BubbleHelp(data.Pipe[4],data.Pipe[5],p^.GetHelp(data.Pipe[4],data.Pipe[5]),false,true)
+					end
+			end;
 		GO_PRIVATE:
 			case data.Pipe[3] of
 			GOP_SETQUIT:
@@ -8606,6 +10179,14 @@ procedure TApplication.MUMesag(data: TEventData);
 							VMNum:=data.Pipe[4];
 							VTNum:=data.Pipe[5]
 						end;
+			GOP_RELEASEBUTTON:
+				begin
+					wind_update(BEG_MCTRL);
+					repeat
+						graf_mkstate(dummy,dummy,ks,dummy)
+					until (ks and data.Pipe[4])=0;
+					wind_update(END_MCTRL)
+				end;
 			GOP_GETVERSION:
 				goversionreply
 			else
@@ -8613,14 +10194,63 @@ procedure TApplication.MUMesag(data: TEventData);
 			end
 		else
 			begin
-				found:=false;
-				pg:=EventList;
-				while (pg<>nil) and not(found) do
-					with pg^ do
-						begin
-							found:=TestMessage(data.Pipe);
-							pg:=Nxt
-						end;
+				if bTst(Attr.Style,as_OLGA) then
+					begin
+						found:=true;
+						case data.Pipe[0] of
+						OLGA_UPDATED:
+							OLGAUpdated(data.Pipe[1],data.Pipe[6],data.Pipe[5],data.Pipe[7],StrPPas(Ptr(word(data.Pipe[3]),word(data.Pipe[4]))));
+						OLGA_GETINFO:
+							OLGAGetInfo(data.Pipe[1],data.Pipe[5]);
+						OLGA_INFO:
+							begin
+								OLGAInfo(data.Pipe[1],data.Pipe[5],StrPPas(Ptr(word(data.Pipe[3]),word(data.Pipe[4]))));
+								ackolga(OLGA_INFO)
+							end;
+						OLGA_LINKBROKEN:
+							begin
+								OLGALinkBroken(data.Pipe[1],data.Pipe[5],StrPPas(Ptr(word(data.Pipe[3]),word(data.Pipe[4]))));
+								olgareply(OLGA_UNLINK)
+							end;
+						OLGA_RENAMELINK:
+							begin
+								OLGARenameLink(data.Pipe[1],data.Pipe[7],StrPPas(Ptr(word(data.Pipe[3]),word(data.Pipe[4]))),StrPPas(Ptr(word(data.Pipe[5]),word(data.Pipe[6]))));
+								olgareply(OLGA_LINKRENAMED)
+							end;
+						OLGA_ACK:
+							OLGAAck(data.Pipe);
+						OLGA_OBJECTS:
+							OLGAObjects(data.Pipe[1],data.pipe[3],
+													StrPTrimF(chr((word(data.Pipe[4]) shr 8) and $00ff)+chr(data.Pipe[4] and $00ff)+chr((word(data.Pipe[5]) shr 8) and $00ff)+chr(data.Pipe[5] and $00ff)),
+													StrPPas(Ptr(word(data.Pipe[6]),word(data.Pipe[7]))));
+						OLGA_IDLE:
+							begin
+								if data.Pipe[3]<>0 then idlereply
+								else
+									OLGAIdle(data.Pipe[1],data.Pipe[4],data.Pipe[5],data.Pipe[6],data.Pipe[7])
+							end;
+						OLGA_INIT:
+							OLGAInit(data.Pipe[1],data.Pipe[3],data.Pipe[4],data.Pipe[7]);
+						OLE_EXIT:
+							OLEExit(data.Pipe[1]);
+						OLE_NEW:
+							OLENew(data.Pipe[1],data.Pipe[3],data.Pipe[4],data.Pipe[5],data.Pipe[6],data.Pipe[7])
+						else
+							found:=false
+						end
+					end
+				else
+					found:=false;
+				if not(found) then
+					begin
+						pg:=EventList;
+						while (pg<>nil) and not(found) do
+							with pg^ do
+								begin
+									found:=TestMessage(data.Pipe);
+									pg:=Nxt
+								end
+					end;
 				if not(found) and not(allicn) then
 					begin
 						pw:=GetPTopWindow;
@@ -8661,6 +10291,43 @@ procedure TApplication.MNSelected(meNum,mtNum: integer; Tree: PTree; PrIndx: int
 		if MenuTree<>nil then
 			if mtNum>ROOT then menu_tnormal(MenuTree,mtNum,ME_INVERT);
 		found:=false;
+		if Tree<>nil then
+			if Tree<>MenuTree then
+				begin
+					p:=EventList;
+					while (p<>nil) and not(found) do
+						begin
+							if bTst(p^.Style,es_SubMenu) then
+								with PSubMenu(p)^ do
+									if Tree=Popup^.PopTree then
+										begin
+											HandleMenu(meNum-Tree^[Popup^.pStart].ob_head);
+											found:=true
+										end;
+							p:=p^.Nxt
+						end;
+					if not(found) then
+						begin
+							pw:=GetPTopWindow;
+							if pw<>nil then
+								if pw^.Class.MenuTree=nil then
+									begin
+										p:=pw^.EventList;
+										while (p<>nil) and not(found) do
+											begin
+												if bTst(p^.Style,es_SubMenu) then
+													with PSubMenu(p)^ do
+														if Tree=Popup^.PopTree then
+															begin
+																HandleMenu(meNum-Tree^[Popup^.pStart].ob_head);
+																found:=true
+															end;
+												p:=p^.Nxt
+											end
+									end
+						end;
+					goto _fertig
+				end;
 		p:=EventList;
 		while (p<>nil) and not(found) do
 			with p^ do
@@ -8875,9 +10542,42 @@ procedure TApplication.SHWDraw(Drive: integer);
 	end;
 
 
+procedure TApplication.FileSelected(Window: PWindow; OrgID: integer; Group: byte; Path: string; Files: PChar);
+
+	begin
+	end;
+
+
 procedure TApplication.SCChanged(OrgID: integer; Bits: word; Ext: string);
 
 	begin
+	end;
+
+
+procedure TApplication.PRNChanged(OrgID,Device,Action: integer);
+
+	begin
+	end;
+
+
+procedure TApplication.FNTChanged(OrgID: integer);
+
+	begin
+	end;
+
+
+procedure TApplication.ColorsChanged(OrgID: integer);
+
+	begin
+	end;
+
+
+procedure TApplication.ColorID(OrgID,mX,mY,palIndex: integer);
+	var pw: PWindow;
+
+	begin
+		pw:=GetGPWindow(wind_find(mX,mY));
+		if pw<>nil then pw^.ColorID(OrgID,mX,mY,palIndex)
 	end;
 
 
@@ -9075,6 +10775,116 @@ function TApplication.XAccIMG(OrgID: integer; pData: pointer; lData: longint; Fi
 	end;
 
 
+procedure TApplication.OLEExit(OrgID: integer);
+
+	begin
+		OLGAManager:=id_No
+	end;
+
+
+procedure TApplication.OLENew(OrgID,OLGAMsg,OLGAVer,OEP1,OEP2,ManagerVer: integer);
+	var pipe: Pipearray;
+
+	begin
+		if not(bTst(Attr.Style,as_OLGA)) then exit;
+		OLGAManager:=OrgID;
+		OLGA.ManagerMsg:=OLGAMsg;
+		OLGA.ManagerProtocol:=OLGAVer;
+		pipe[0]:=OLE_INIT;
+		pipe[1]:=apID;
+		pipe[2]:=0;
+		pipe[3]:=OLGA.Msg;
+		pipe[4]:=OLGA.Protocol;
+		pipe[5]:=0;
+		pipe[6]:=0;
+		with XAcc do
+			begin
+				if length(AppTypeMR)>0 then pipe[7]:=ord(AppTypeMR[1])
+				else
+					pipe[7]:=0;
+				if length(AppTypeMR)=2 then pipe[7]:=integer((pipe[7] shl 8) or ord(AppTypeMR[2]))
+			end;
+		appl_write(OrgID,16,@pipe)
+	end;
+
+
+procedure TApplication.OLGAInit(OrgID,Msg,Ver,eFlag: integer);
+
+	begin
+		if eFlag=0 then
+			begin
+				OLGAManager:=id_No;
+				OLGA.ManagerMsg:=0;
+				OLGA.ManagerProtocol:=0
+			end
+		else
+			if bTst(Msg,OL_MANAGER) then
+				if bTst(Attr.Style,as_OLGA) then
+					begin
+						OLGAManager:=OrgID;
+						OLGA.ManagerMsg:=Msg;
+						OLGA.ManagerProtocol:=Ver
+					end
+	end;
+
+
+procedure TApplication.OLGAUpdated(OrgID,SrvID,InfoNr,Group: integer; Link: string);
+	var p: PWindow;
+
+	begin
+		p:=GetPWindow(Group);
+		if p<>nil then p^.OLGAUpdated(OrgID,SrvID,InfoNr,Link)
+	end;
+
+
+procedure TApplication.OLGAGetInfo(OrgID,InfoNr: integer);
+
+	begin
+	end;
+
+
+procedure TApplication.OLGAInfo(OrgID,InfoNr: integer; InfoFile: string);
+
+	begin
+	end;
+
+
+procedure TApplication.OLGARenameLink(OrgID,Group: integer; OldLink,NewLink: string);
+	var p: PWindow;
+
+	begin
+		p:=GetPWindow(Group);
+		if p<>nil then p^.OLGARenameLink(OrgID,OldLink,NewLink)
+	end;
+
+
+procedure TApplication.OLGALinkBroken(OrgID,Group: integer; Link: string);
+	var p: PWindow;
+
+	begin
+		p:=GetPWindow(Group);
+		if p<>nil then p^.OLGALinkBroken(OrgID,Link)
+	end;
+
+
+procedure TApplication.OLGAAck(Pipe: Pipearray);
+
+	begin
+	end;
+
+
+procedure TApplication.OLGAObjects(OrgID,Rest: integer; Ext,Descr: string);
+
+	begin
+	end;
+
+
+procedure TApplication.OLGAIdle(OrgID,d4,d5,d6,d7: integer);
+
+	begin
+	end;
+
+
 procedure TApplication.AVProtokoll(OrgID: integer; Msg: word; AName: string);
 	var pipe: Pipearray;
 
@@ -9164,12 +10974,25 @@ procedure TApplication.AVSendKey(Stat,Key: integer);
 	end;
 
 
-procedure TApplication.VAStart(OrgID: integer; Cmd: string);
+procedure TApplication.AVSendClick(mX,mY,BStat,KStat,Clicks: integer);
+	var data: TEventData;
+
+	begin
+		data.mX:=mX;
+		data.mY:=mY;
+		data.BStat:=BStat;
+		data.KStat:=KStat;
+		data.Clicks:=Clicks;
+		MUButton(data)
+	end;
+
+
+procedure TApplication.VAStart(OrgID: integer; Cmd: PChar);
 
 	begin
 		DisposeStr(Attr.rpTail);
-		if length(Cmd)>0 then Attr.rpTail:=NewStr(Cmd);
-		ACOpen(menuID)
+		if Cmd<>nil then Attr.rpTail:=NewStr(StrPas(Cmd));
+		if not(AppFlag) then ACOpen(menuID)
 	end;
 
 
@@ -9277,6 +11100,88 @@ procedure TApplication.DDFinished(OrgID,WindID,mX,mY,KStat: integer);
 	end;
 
 
+function TApplication.StartApp(Path,Cmd: string): integer;
+	var dummy,dpath: string;
+	    aid,drv,ret: integer;
+	    pipe       : Pipearray;
+
+	procedure ShelWrite(mode,wiscr: integer);
+
+		begin
+			with AES_pb do
+				begin
+					control^[0]:=121;
+					control^[1]:=3;
+					control^[2]:=1;
+					control^[3]:=2;
+					control^[4]:=0;
+					intin^[0]:=mode;
+					intin^[1]:=1;
+					intin^[2]:=wiscr;
+					addrin^[0]:=@Path[1];
+					addrin^[1]:=startcmd;
+					_crystal(@AES_pb);
+					ret:=intout^[0]
+				end
+		end;
+
+	begin
+		StartApp:=-1;
+		dummy:=GetFilename(Path,false);
+		if length(dummy)=0 then exit;
+		ret:=-1;
+		dpath:=GetPath(Path)+#0;
+		if startcmd<>nil then GlobalFree(startcmd,cmdlen);
+		cmdlen:=length(Cmd)+1;
+		dummy:=StrPUpper(dummy)+StrPSpace(8-length(dummy));
+		aid:=appl_find(dummy);
+		if aid>=0 then
+			begin
+				if length(Cmd)>0 then
+					begin
+						GlobalAlloc(startcmd,cmdlen);
+						if startcmd=nil then exit;
+						StrPCopy(startcmd,Cmd)
+					end;
+				pipe[0]:=VA_START;
+				pipe[1]:=apID;
+				pipe[2]:=0;
+				pipe[3]:=integer(HiWord(startcmd));
+				pipe[4]:=integer(LoWord(startcmd));
+				pipe[5]:=0;
+				pipe[6]:=0;
+				pipe[7]:=0;
+				appl_write(aid,16,@pipe);
+				ret:=aid
+			end
+		else
+			if MultiTOS or MagiCActive then
+				begin
+					inc(cmdlen);
+					GlobalAlloc(startcmd,cmdlen);
+					if startcmd=nil then exit;
+					PChar(startcmd)^:=char(length(Cmd));
+					StrPCopy(PChar(longint(startcmd)+1),Cmd);
+					if not(Exist(Path)) then exit;
+					drv:=dgetdrv;
+					dgetpath(dummy,drv+1);
+					if length(Path)>1 then
+						if Path[2]=':' then dsetdrv(ord(upcase(Path[1]))-65);
+					dsetpath(dpath);
+					Path:=Path+#0;
+					if MagiCActive then ShelWrite(1,100)
+					else
+						ShelWrite(0,1);
+					if ret<0 then
+						begin
+							dsetdrv(drv);
+							dsetpath(dummy)
+						end
+				end;
+		StartApp:=ret
+	end;
+
+
 procedure TApplication.Cut;
 
 	begin
@@ -9360,7 +11265,7 @@ procedure TApplication.HandleDragDrop(PipeHnd,OrgID,WindID,mX,mY,KStat: integer)
 			if fread(PipeHnd,hdrlen,@dname)<>hdrlen then exit;
 		if dtype='PATH' then
 			begin
-				answer:=StrPTrimF(DDGetPath(WindID));
+				answer:=DDGetPath(WindID);
 				if length(answer)=0 then answer:=chr(DD_NAK)
 				else
 					answer:=StrPLeft(chr(DD_OK)+answer,dsize);
@@ -9400,7 +11305,12 @@ procedure TApplication.HandleKeybd(Stat,Key: integer);
 			end
 		else
 			pw:=GetPTopWindow;
-		if pw<>nil then valid:=not(pw^.WMKeyDown(Stat,Key))
+		if pw<>nil then
+			begin
+				if not(pw^.IsIconified or pw^.IsShaded) then valid:=not(pw^.WMKeyDown(Stat,Key))
+				else
+					valid:=true
+			end
 		else
 			valid:=true;
 		if valid then
@@ -9411,7 +11321,9 @@ procedure TApplication.HandleKeybd(Stat,Key: integer);
 					pipe[2]:=0;
 					pipe[3]:=Stat;
 					pipe[4]:=Key;
-					appl_write(AVServer,16,@pipe)
+					{ ... }
+					if Stat=K_ALT+K_LSHIFT then
+						if Key=24576 then appl_write(AVServer,16,@pipe)
 				end
 	end;
 
@@ -9432,18 +11344,19 @@ procedure TApplication.HandleM1(mX,mY,BStat,KStat: integer);
 	begin
 		if pcrswatch<>nil then
 			if not(IsMouseBusy) then
-				begin
-					wind_update(BEG_UPDATE);
-					Attr.EventMask:=(Attr.EventMask and not(MU_M1)) or MU_M2;
-					GetMouse(wmnr,wmform);
-					if pcrswatch^.IsIconified then cursor:=pcrswatch^.IconClass.hCursor
-					else
-						cursor:=pcrswatch^.Class.hCursor;
-					if cursor>$7fff then SetMouse(USER_DEF,pointer(cursor))
-					else
-						SetMouse(cursor,nil);
-					wind_update(END_UPDATE)
-				end
+				if not(pcrswatch^.IsShaded) then
+					begin
+						wind_update(BEG_UPDATE);
+						Attr.EventMask:=(Attr.EventMask and not(MU_M1)) or MU_M2;
+						GetMouse(wmnr,wmform);
+						if pcrswatch^.IsIconified then cursor:=pcrswatch^.IconClass.hCursor
+						else
+							cursor:=pcrswatch^.Class.hCursor;
+						if cursor>$7fff then SetMouse(USER_DEF,pointer(cursor))
+						else
+							SetMouse(cursor,nil);
+						wind_update(END_UPDATE)
+					end
 	end;
 
 
@@ -9511,7 +11424,8 @@ procedure TApplication.Run;
     	begin
     		termflag:=true;
 		    MessageLoop
-			end
+			end;
+		Terminating:=true
   end;
 
 
@@ -9519,6 +11433,13 @@ procedure TApplication.Quit;
 
 	begin
 		Status:=em_Quit
+	end;
+
+
+procedure TApplication.Bing;
+
+	begin
+		Bconout(2,BEL)
 	end;
 
 
@@ -9673,169 +11594,87 @@ procedure TApplication.IconPaint(Work: GRECT; var PaintInfo: TPaintStruct);
 	end;
 
 
-procedure TApplication.BubbleHelp(mX,mY: integer; Delay: word; Hlp: string);
-	label _memfail;
-
-	var pxy              : ARRAY_4;
-	    bpxy             : record
-	                         case integer of
-	                           0: (b8     : ARRAY_8);
-	                           1: (b41,b42: ARRAY_4)
-	                       end;
-	    scrn,backgr      : MFDB;
-	    dummy,cw,lanz,xc,
-	    xpos,ypos,yc,mlen: integer;
-	    blen,ql          : longint;
-	    pipe             : Pipearray;
-	    qp               : pointer;
-	    qused            : boolean;
+procedure TApplication.BubbleHelp(mX,mY: integer; Hlp: string; mouse,demon: boolean);
+	var bubblegem,
+	    bclicks,
+	    bmask,
+	    bstate,
+	    dummy,ms : integer;
+	    delay    : longint;
+	    pipe     : Pipearray;
+	    bgs      : string;
 
 	begin
-		if length(Hlp)=0 then exit;
-		wind_update(BEG_UPDATE);
-		wind_update(BEG_MCTRL);
-		HideMouse;
-		pxy[0]:=0;
-		pxy[1]:=0;
-		pxy[2]:=Attr.MaxPX;
-		pxy[3]:=Attr.MaxPY;
-		vs_clip(vdiHandle,CLIP_ON,pxy);
-		vst_alignment(vdiHandle,TA_LEFT,TA_TOP,dummy,dummy);
-		Hlp:=AlertBubbleWrap(Hlp,Min(37,(Attr.MaxPX div Attr.boxWidth)-2));
-		lanz:=1;
-		mlen:=0;
-		xpos:=1;
-		for dummy:=1 to length(Hlp) do
-			if Hlp[dummy]='|' then
-				begin
-					if dummy-xpos>mlen then mlen:=dummy-xpos;
-					xpos:=dummy+1;
-					inc(lanz)
-				end;
-		if length(Hlp)+1-xpos>mlen then mlen:=length(Hlp)+1-xpos;
-		xpos:=mX-((mlen*Attr.boxWidth) shr 2);
-		ypos:=mY-(lanz+2)*Attr.boxHeight;
-		if xpos+(mlen+1)*Attr.boxWidth>Attr.MaxPX then xpos:=Attr.MaxPX-(mlen+1)*Attr.boxWidth;
-		if ypos<=(Attr.boxHeight shr 1) then
+		if (length(Hlp)=0) or not(BubbleHelpActive) or (bubblebuf=nil) then exit;
+		bubblegem:=appl_find('BUBBLE  ');
+		if bubblegem<0 then
 			begin
-				ypos:=(Attr.boxHeight shr 1)+1;
-				if ypos+(lanz+2)*Attr.boxHeight>mY then
+				bgs:=GetEnv('BUBBLEGEM');
+				if length(bgs)>0 then
 					begin
-						ypos:=mY+((Attr.boxHeight*3) shr 1);
-						xpos:=mX-((mlen*Attr.boxWidth) shr 2)*3
+						bubblegem:=StartApp(bgs,'');
+						if bubblegem>=0 then evnt_timer(500,0)
 					end
 			end;
-		if xpos<=Attr.boxWidth then xpos:=Attr.boxWidth+1;
-		pxy[0]:=xpos-Attr.boxWidth;
-		pxy[1]:=ypos-(Attr.boxHeight shr 1);
-		pxy[2]:=pxy[0]+(mlen+2)*Attr.boxWidth;
-		pxy[3]:=pxy[1]+(lanz+1)*Attr.boxHeight;
-		xc:=xpos+((mlen*Attr.boxWidth) shr 1);
-		bpxy.b8[0]:=pxy[0]-2;
-		bpxy.b8[2]:=pxy[2]+1;
-		if pxy[1]<mY then
+		if bubblegem<0 then exit;
+		StrPCopy(bubblebuf,Hlp);
+		pipe[0]:=BUBBLEGEM_SHOW;
+		pipe[1]:=apID;
+		pipe[2]:=0;
+		pipe[3]:=mx;
+		pipe[4]:=my;
+		pipe[5]:=integer(HiWord(bubblebuf));
+		pipe[6]:=integer(LoWord(bubblebuf));
+		pipe[7]:=0;
+		if mouse then pipe[7]:=pipe[7] or BGS7_MOUSE;
+		if demon then pipe[7]:=pipe[7] or BGS7_REQBYDEMON;
+		if DlgTop<0 then
 			begin
-				yc:=pxy[3];
-				bpxy.b8[1]:=pxy[1]-2;
-				bpxy.b8[3]:=mY+4
+				appl_write(bubblegem,16,@pipe);
+				evnt_timer(100,0)
 			end
 		else
 			begin
-				yc:=pxy[1];
-				bpxy.b8[1]:=mY-4;
-				bpxy.b8[3]:=pxy[3]+1
-			end;
-		if bpxy.b8[0]<0 then bpxy.b8[0]:=0;
-		if bpxy.b8[1]<0 then bpxy.b8[1]:=0;
-		if bpxy.b8[2]>Attr.MaxPX then bpxy.b8[2]:=Attr.MaxPX;
-		if bpxy.b8[3]>Attr.MaxPY then bpxy.b8[3]:=Attr.MaxPY;
-		with backgr do
-			begin
-				fd_w:=bpxy.b8[2]+1-bpxy.b8[0];
-				fd_h:=bpxy.b8[3]+1-bpxy.b8[1];
-				fd_stand:=FF_DEVSPEC;
-				fd_wdwidth:=(fd_w+15) shr 4;
-				fd_nplanes:=Attr.Planes;
-				blen:=(longint(fd_wdwidth)*longint(fd_h)*longint(fd_nplanes)) shl 1
-			end;
-		if IsQSBUsed then ql:=-1
-		else
-			GetQSB(qp,ql);
-		qused:=(ql>=blen);
-		if qused then
-			begin
-				backgr.fd_addr:=qp;
-				IsQSBUsed:=true
+				if not(GetCookie('BGEM',delay)) then Bing
+				else
+					begin
+						pipe[7]:=pipe[7] or BGS7_USRHIDE;
+						appl_write(bubblegem,16,@pipe);
+						evnt_timer(10,0);
+						graf_mkstate(dummy,dummy,ms,dummy);
+						if (ms and 3)=0 then
+							begin
+								bclicks:=258;
+								bmask:=3;
+								bstate:=0
+							end
+						else
+							begin
+								bclicks:=0;
+								bmask:=3;
+								bstate:=0
+							end;
+						if not(GetCookie('BHLP',delay)) then delay:=200
+						else
+							delay:=(delay shr 16) and $0000ffff;
+						SetMouse(IDC_HELP,nil);
+						evnt_timer(delay,0);
+						evnt_multi(MU_KEYBD or MU_BUTTON or MU_M1,bclicks,bmask,bstate,1,mX-6,mY-6,13,13,0,0,0,0,0,pipe,0,0,dummy,dummy,ms,dummy,dummy,dummy);
+						pipe[0]:=BUBBLEGEM_HIDE;
+						pipe[1]:=apID;
+						pipe[2]:=0;
+						pipe[3]:=0;
+						pipe[4]:=0;
+						pipe[5]:=0;
+						pipe[6]:=0;
+						pipe[7]:=0;
+						appl_write(bubblegem,16,@pipe);
+						SetMouse(ARROW,nil)
+					end;
+				repeat
+					graf_mkstate(dummy,dummy,ms,dummy)
+				until (ms and 3)=0
 			end
-		else
-			getmem(backgr.fd_addr,blen);
-		if backgr.fd_addr=nil then goto _memfail;
-		scrn.fd_addr:=nil;
-		bpxy.b8[4]:=0;
-		bpxy.b8[5]:=0;
-		bpxy.b8[6]:=backgr.fd_w-1;
-		bpxy.b8[7]:=backgr.fd_h-1;
-		vro_cpyfm(vdiHandle,S_ONLY,bpxy.b8,scrn,backgr);
-		vsf_interior(vdiHandle,FIS_SOLID);
-		v_rfbox(vdiHandle,pxy);
-		for dummy:=0 to 3 do dec(pxy[dummy]);
-		vsf_interior(vdiHandle,FIS_HOLLOW);
-		v_rfbox(vdiHandle,pxy);
-		dummy:=round(sqrt(sqr(mX-xc)+sqr(mY-yc))/6);
-		pxya[0]:=xc-dummy;
-		pxya[1]:=yc-1;
-		pxya[2]:=xc+dummy;
-		pxya[3]:=pxya[1];
-		pxya[4]:=mX;
-		pxya[5]:=mY;
-		pxya[6]:=pxya[0];
-		pxya[7]:=pxya[1];
-		v_fillarea(vdiHandle,4,pxya);
-		inc(pxya[0]);
-		dec(pxya[2]);
-		vsl_color(vdiHandle,White);
-		v_pline(vdiHandle,2,pxya);
-		vsl_color(vdiHandle,Black);
-		pxya[4]:=pxya[2];
-		pxya[5]:=pxya[3];
-		pxya[2]:=mX;
-		pxya[3]:=mY;
-		v_pline(vdiHandle,3,pxya);
-		dummy:=pos('|',Hlp);
-		while dummy>0 do
-			begin
-				v_gtext(vdiHandle,xpos,ypos,StrPLeft(Hlp,dummy-1));
-				Hlp:=StrPRight(Hlp,length(Hlp)-dummy);
-				inc(ypos,Attr.boxHeight);
-				dummy:=pos('|',Hlp)
-			end;
-		v_gtext(vdiHandle,xpos,ypos,Hlp);
-		ShowMouse;
-		SetMouse(IDC_HELP,pointer(1));
-		repeat
-			graf_mkstate(dummy,dummy,cw,dummy)
-		until cw=0;
-		evnt_timer(Delay,0);
-		evnt_multi(MU_KEYBD or MU_BUTTON or MU_M1,257,3,0,1,mX-8,mY-8,17,17,0,0,0,0,0,pipe,0,0,dummy,dummy,dummy,dummy,dummy,dummy);
-		HideMouse;
-		scrn.fd_addr:=nil;
-		pxy:=bpxy.b41;
-		bpxy.b41:=bpxy.b42;
-		bpxy.b42:=pxy;
-		vro_cpyfm(vdiHandle,S_ONLY,bpxy.b8,backgr,scrn);
-		if qused then IsQSBUsed:=false
-		else
-			freemem(backgr.fd_addr,blen);
-		_memfail:
-		vst_alignment(vdiHandle,TA_LEFT,TA_BASELINE,dummy,dummy);
-		vs_clip(vdiHandle,CLIP_ON,SysInfo.Desktop.A2);
-		ShowMouse;
-		gem.graf_mouse(maus.currnr,@maus.currform);
-		repeat
-			graf_mkstate(dummy,dummy,cw,dummy)
-		until not(bTst(cw,2));
-		wind_update(END_MCTRL);
-		wind_update(END_UPDATE)
 	end;
 
 
@@ -9887,10 +11726,10 @@ function TApplication.Alert(AParent: PWindow; DefBtn: integer; Sign: longint; Tx
 									$1bff,$ffd8,$0dff,$ffb0,$06ff,$ff60,$037f,$fec0,$01bf,$fd80,
 									$00c0,$0300,$007f,$fe00));
 
-				ABACKBOX      = 0;
-				ABUTTON       = 1;
-				ASTRING       = 2;
-				ABITBLOCK     = 3;
+				ABACKBOX      =  0;
+				ABUTTON       =  1;
+				ASTRING       =  2;
+				ABITBLOCK     =  3;
 				ALRT_MAXLINES = 18;
 				ALRT_MAXBTN   = 12;
 				ALRT_WBORDER  =  2;
@@ -9905,11 +11744,58 @@ function TApplication.Alert(AParent: PWindow; DefBtn: integer; Sign: longint; Tx
 	    firstbutton,maxbutton,maxtext: integer;
 	    firsttext,obj,i,treecnt      : integer;
 	    tree                         : PTree;
-	    adlg                         : PDialog;
+	    adlg                         : PAlrtDialog;
 	    pbitblk                      : pointer;
 	    bbcalc                       : BITBLK;
 	    smfdb                        : MFDB;
 	    ltmval                       : longint;
+
+	function AlertWrap(txt: string; width: integer): string;
+		var ret: string;
+		    t  : integer;
+
+		procedure add(s: string);
+			label _nochmal;
+
+			var i,l: integer;
+			    ext: ARRAY_8;
+
+			begin
+				_nochmal:
+				StrPTrim(s);
+				vqt_extent(vdiHandle,s,ext);
+				if ext[2]>width then
+					begin
+						l:=length(s);
+						repeat
+							dec(l);
+							vqt_extent(vdiHandle,StrPLeft(s,l),ext)
+						until ext[2]<=width;
+						i:=l;
+						while not(s[i] in [' ',',','.',';','?','!',':','-','+',')','\']) and (i>0) do dec(i);
+						if i=0 then i:=l;
+						ret:=ret+StrPTrimF(StrPLeft(s,i))+'|';
+						s:=StrPRight(s,length(s)-i);
+						goto _nochmal
+					end;
+				ret:=ret+s
+			end;
+
+		begin
+			if width<(SysInfo.Font.Width shl 2) then width:=SysInfo.Font.Width shl 2;
+			if width>(Attr.MaxPX-(SysInfo.Font.Width shl 1)) then width:=Attr.MaxPX-(SysInfo.Font.Width shl 1);
+			ret:='';
+			t:=pos('|',txt);
+			while t>0 do
+				begin
+					add(StrPLeft(txt,t-1));
+					ret:=ret+'|';
+					txt:=StrPRight(txt,length(txt)-t);
+					t:=pos('|',txt)
+				end;
+			add(txt);
+			AlertWrap:=ret
+		end;
 
 	procedure filterzero(var s: string);
 		var ps: integer;
@@ -9942,8 +11828,11 @@ function TApplication.Alert(AParent: PWindow; DefBtn: integer; Sign: longint; Tx
 		end;
 
 	procedure createalert;
-		var dummy,c         : string;
-		    i,max1,max2,xpos: integer;
+		var dummy,c  : string;
+		    max1,max2,
+		    sdif,
+		    xpos,i,j : integer;
+		    ext      : ARRAY_8;
 
 		function taketoken: string;
 			var q,l: integer;
@@ -9971,6 +11860,8 @@ function TApplication.Alert(AParent: PWindow; DefBtn: integer; Sign: longint; Tx
 
 		begin
 			tree^[ROOT]:=alertref[ABACKBOX];
+			if MagiCVersion>=$0300 then
+				with tree^[ROOT].ob_spec do index:=(index and $ff00ffff) or $00020000;
 			treecnt:=1;
 			if pbitblk<>nil then
 				begin
@@ -10067,7 +11958,34 @@ function TApplication.Alert(AParent: PWindow; DefBtn: integer; Sign: longint; Tx
 				tree^[obj].ob_height:=ALRT_HBUTTON;
 				inc(xpos,maxbutton+ALRT_WBORDER)
 			until bTst(tree^[obj].ob_flags,LASTOB);
-			for i:=0 to treecnt-1 do rsrc_obfix(tree,i)
+			for i:=ROOT to treecnt-1 do rsrc_obfix(tree,i);
+			if tree^[firstbutton].ob_x>(SysInfo.Font.Width shl 1) then
+				begin
+					sdif:=Attr.MaxPX;
+					for i:=ROOT+1 to treecnt-1 do
+						if (tree^[i].ob_type=G_STRING) then
+							if length(StrPPas(tree^[i].ob_spec.free_string))>0 then
+								begin
+									vqt_extent(vdiHandle,StrPPas(tree^[i].ob_spec.free_string),ext);
+									j:=tree^[ROOT].ob_width-tree^[i].ob_x-ext[2];
+									if j<sdif then sdif:=j
+								end;
+					if sdif<Attr.MaxPX then
+						begin
+							sdif:=Min(sdif,tree^[firstbutton].ob_x);
+							dec(sdif,SysInfo.Font.Width+Attr.charSWidth);
+							if sdif>0 then
+								begin
+									dec(tree^[ROOT].ob_width,sdif);
+									for i:=ROOT+1 to treecnt-1 do
+										begin
+											if (tree^[i].ob_type=G_STRING) then dec(tree^[i].ob_width,sdif)
+											else
+												if (tree^[i].ob_type=G_BUTTON) then dec(tree^[i].ob_x,sdif)
+										end
+								end
+						end
+				end
 		end;
 
 	begin
@@ -10101,9 +12019,9 @@ function TApplication.Alert(AParent: PWindow; DefBtn: integer; Sign: longint; Tx
 		if length(Txt)=0 then Txt:=' '
 		else
 			begin
-				if pbitblk=nil then Txt:=AlertBubbleWrap(Txt,Min(50,(Attr.MaxPX div SysInfo.SFWidth)-5))
+				if pbitblk=nil then Txt:=AlertWrap(Txt,Min(360,Attr.MaxPX-SysInfo.Font.Width*5))
 				else
-					txt:=AlertBubbleWrap(Txt,Min(50,(Attr.MaxPX div SysInfo.SFWidth)-10))
+					txt:=AlertWrap(Txt,Min(360,Attr.MaxPX-SysInfo.Font.Width*10))
 			end;
 		cnttext:=counttokens(Txt,ALRT_MAXLINES);
 		if (cnttext=1) and (pbitblk<>nil) then
@@ -10137,6 +12055,8 @@ function TApplication.Alert(AParent: PWindow; DefBtn: integer; Sign: longint; Tx
 				smfdb.fd_stand:=FF_DEVSPEC
 			end;
 		Attr.Style:=Attr.Style and not(as_GrowShrink);
+		adlg^.cntbutton:=cntbutton;
+		adlg^.firstbutton:=firstbutton;
 		with adlg^ do
 			begin
 				Attr.ExStyle:=(Attr.ExStyle and not(ws_ex_TryModeless)) or ws_ex_Center2Parent;
@@ -10176,7 +12096,7 @@ function TApplication.Popup(APopup: PPopup; x,y,Flag: integer): integer;
 function TApplication.Rubbox(WHnd,x,y,xmin,ymin,xmax,ymax: integer; IconSel: boolean; var r: GRECT): boolean;
 	var x2,y2,mx,my,mk,dummy: integer;
 	    box,cl              : GRECT;
-	    pxy2,pxy3,pxy4      : ptsin_ARRAY;
+	    pxy2,pxy3,pxy4      : ARRAY_4;
 	    wnd                 : PWindow;
 	    visible             : boolean;
 	    pe,pevnt            : PEvent;
@@ -10222,7 +12142,7 @@ function TApplication.Rubbox(WHnd,x,y,xmin,ymin,xmax,ymax: integer; IconSel: boo
 	begin
 		wind_update(BEG_UPDATE);
 		wind_update(BEG_MCTRL);
-		gem.graf_mouse(POINT_HAND,nil);
+		graf_mouse(POINT_HAND,nil);
 		mx:=x;
 		my:=y;
 		pxya[0]:=x;
@@ -10331,10 +12251,10 @@ function TApplication.Rubbox(WHnd,x,y,xmin,ymin,xmax,ymax: integer; IconSel: boo
 			DrawRubbox
 		until (mk<>1);
 		ShowMouse;
-		gem.graf_mouse(maus.currnr,@maus.currform);
+		graf_mouse(maus.currnr,@maus.currform);
 		wind_update(END_MCTRL);
 		wind_update(END_UPDATE);
-		if (mk=0) and (x<>x2) and (y<>y2) then
+		if mk=0 then
 			begin
 				r.X1:=Min(x,x2);
 				r.X2:=Max(x,x2);
@@ -10363,10 +12283,23 @@ function TApplication.Rubbox(WHnd,x,y,xmin,ymin,xmax,ymax: integer; IconSel: boo
 	end;
 
 
+procedure TApplication.ReleaseMouseButton(Mask:integer);
+	var pipe: Pipearray;
+
+	begin
+		pipe[0]:=GO_PRIVATE;
+		pipe[1]:=apID;
+		pipe[2]:=0;
+		pipe[3]:=GOP_RELEASEBUTTON;
+		pipe[4]:=Mask;
+		appl_write(apID,16,@pipe)
+	end;
+
+
 procedure TApplication.InvalidateRect(Wnd: HWnd; Rect: PGRECT);
-	var p   : PWindow;
-	    box : GRECT;
-	    pipe: Pipearray;
+	var p    : PWindow;
+	    box,r: GRECT;
+	    pipe : Pipearray;
 
 	begin
 		wind_update(BEG_UPDATE);
@@ -10377,8 +12310,11 @@ procedure TApplication.InvalidateRect(Wnd: HWnd; Rect: PGRECT);
 					if Rect<>nil then box:=Rect^
 					else
 						begin
+							r:=Curr;
 							GetWork;
-							box:=Work
+							GetCurr;
+							box:=Curr;
+							Curr:=r
 						end;
 					pipe[0]:=WM_REDRAW;
 					pipe[1]:=apID;
@@ -10481,6 +12417,40 @@ procedure TApplication.GetMenuEntries(var Entries: TMenuEntries);
 	end;
 
 
+procedure TApplication.CheckMenuEntries;
+
+	begin
+		if (MenuTree=nil) or (menuentries=nil) then exit;
+		if GetPTopWindow=nil then
+			begin
+				if menuentries^.Close.Entry>0 then menu_ienable(MenuTree,menuentries^.Close.Entry,0);
+				if menuentries^.Print.Entry>0 then menu_ienable(MenuTree,menuentries^.Print.Entry,0);
+				if menuentries^.Cut.Entry>0 then menu_ienable(MenuTree,menuentries^.Cut.Entry,0);
+				if menuentries^.Copy.Entry>0 then menu_ienable(MenuTree,menuentries^.Copy.Entry,0);
+				if menuentries^.Paste.Entry>0 then menu_ienable(MenuTree,menuentries^.Paste.Entry,0);
+				if menuentries^.Delete.Entry>0 then menu_ienable(MenuTree,menuentries^.Delete.Entry,0);
+				if menuentries^.SelectAll.Entry>0 then menu_ienable(MenuTree,menuentries^.SelectAll.Entry,0)
+			end
+		else
+			begin
+				if menuentries^.Close.Entry>0 then menu_ienable(MenuTree,menuentries^.Close.Entry,1);
+				if menuentries^.Print.Entry>0 then menu_ienable(MenuTree,menuentries^.Print.Entry,1);
+				if menuentries^.Cut.Entry>0 then menu_ienable(MenuTree,menuentries^.Cut.Entry,1);
+				if menuentries^.Copy.Entry>0 then menu_ienable(MenuTree,menuentries^.Copy.Entry,1);
+				if menuentries^.Paste.Entry>0 then menu_ienable(MenuTree,menuentries^.Paste.Entry,1);
+				if menuentries^.Delete.Entry>0 then menu_ienable(MenuTree,menuentries^.Delete.Entry,1);
+				if menuentries^.SelectAll.Entry>0 then menu_ienable(MenuTree,menuentries^.SelectAll.Entry,1)
+			end
+	end;
+
+
+procedure TApplication.SetError(AnError: integer);
+
+	begin
+		Err:=AnError
+	end;
+
+
 function TApplication.ChkError: integer;
 
 	begin
@@ -10505,7 +12475,23 @@ procedure TApplication.Error(ErrorCode: integer);
 		olderr:=Err;
 		Status:=em_OK;
 		Err:=em_OK;
-		if (Attr.Country=FRG) or (Attr.Country=SWG) then
+		if Attr.Country=FRA then
+			case ErrorCode of
+				em_OK,em_Quit,em_AESNotActive,em_GEMInitFailure,em_Terminate:;
+				em_InvalidWindow: GOErrAlert(NOTE,'Plus assez de fenàtres');
+				em_InvalidMainWindow: GOErrAlert(NOTE,'Fenàtre principale invalide');
+				em_AccInitFailure: GOErrAlert(STOP,'Initiation des accessoires corrompue');
+				em_WOpenFailure: GOErrAlert(NOTE,'Ouverture des fenàtres corrompue');
+				em_WCloseFailure: GOErrAlert(NOTE,'Fermeture des fenàtres corrompue');
+				em_WDestroyFailure: GOErrAlert(NOTE,'Destruction des fenàtres corrompue');
+				em_RscNotFound: GOErrAlert(NOTE,'Fichier ressource introuvable');
+				em_InvalidMenu: GOErrAlert(NOTE,'Structure de menu invalide');
+				em_InvalidDialog: GOErrAlert(NOTE,'Ressource de dialogue invalide');
+				em_OutOfMemory: GOErrAlert(STOP,'Erreur: Pas assez de mÇmoire RAM')
+			else
+				GOErrAlert(STOP,'Erreur inconnue '+ltoa(ErrorCode))
+			end
+		else if (Attr.Country=FRG) or (Attr.Country=SWG) then
 			case ErrorCode of
 				em_OK,em_Quit,em_AESNotActive,em_GEMInitFailure,em_Terminate:;
 				em_InvalidWindow: GOErrAlert(NOTE,'Kein Fenster mehr verfÅgbar');
@@ -10542,6 +12528,36 @@ procedure TApplication.Error(ErrorCode: integer);
 	end;
 
 
+function TApplication.GetObjectParent(tree: PTree; indx: integer): integer;
+	var p,np: integer;
+
+	begin
+		p:=-1;
+		np:=tree^[indx].ob_next;
+		while (np>-1) and (p=-1) do
+			begin
+				if tree^[np].ob_tail=indx then p:=np;
+				indx:=np;
+				np:=tree^[indx].ob_next
+			end;
+		GetObjectParent:=p
+	end;
+
+
+function TApplication.IsTreeHidden(tree: PTree; pobj: integer): boolean;
+	var hid: boolean;
+
+	begin
+		hid:=false;
+		while not(hid) and (pobj>-1) do
+			begin
+				hid:=bTst(tree^[pobj].ob_flags,HIDETREE);
+				pobj:=GetObjectParent(tree,pobj)
+			end;
+		IsTreeHidden:=hid
+	end;
+
+
 	{ private }
 
 
@@ -10555,7 +12571,7 @@ procedure TApplication.MoveIcons(Wnd: PEventObject; Icn: PIcon; gHnd,mX,mY: inte
 		wind_update(BEG_MCTRL);
 		vswr_mode(vdiHandle,MD_XOR);
 		vsl_type(vdiHandle,LT_USERDEF);
-		gem.graf_mouse(FLAT_HAND,nil);
+		graf_mouse(FLAT_HAND,nil);
 		x2:=mX;
 		y2:=mY;
 		xl:=maxint;
@@ -10669,7 +12685,7 @@ procedure TApplication.MoveIcons(Wnd: PEventObject; Icn: PIcon; gHnd,mX,mY: inte
 		ShowMouse;
 		vswr_mode(vdiHandle,MD_REPLACE);
 		vsl_type(vdiHandle,LT_SOLID);
-		gem.graf_mouse(maus.currnr,@maus.currform);
+		graf_mouse(maus.currnr,@maus.currform);
 		wind_update(END_MCTRL);
 		if (bs=0) and ((x<>mX) or (y<>mY)) then
 			begin
@@ -10691,41 +12707,10 @@ procedure TApplication.MoveIcons(Wnd: PEventObject; Icn: PIcon; gHnd,mX,mY: inte
 	end;
 
 
-function TApplication.GetObjectParent(tree: PTree; indx: integer): integer;
-	var p,np: integer;
-
-	begin
-		p:=-1;
-		np:=tree^[indx].ob_next;
-		while (np>-1) and (p=-1) do
-			begin
-				if tree^[np].ob_tail=indx then p:=np;
-				indx:=np;
-				np:=tree^[indx].ob_next
-			end;
-		GetObjectParent:=p
-	end;
-
-
 function TApplication.find_object(tree: PTree; start,which: integer): integer;
 	label _again;
 
 	var obj,flag,increment,objmax: integer;
-
-	function IsHidden: boolean;
-		var hid : boolean;
-				pobj: integer;
-
-		begin
-			hid:=false;
-			pobj:=obj;
-			while not(hid) and (pobj>-1) do
-				begin
-					hid:=bTst(tree^[pobj].ob_flags,HIDETREE);
-					pobj:=GetObjectParent(tree,pobj)
-				end;
-			IsHidden:=hid
-		end;
 
 	begin
 		obj:=0;
@@ -10740,7 +12725,7 @@ function TApplication.find_object(tree: PTree; start,which: integer): integer;
 		while (obj>=0) and (obj<=objmax) do
 			begin
 				with tree^[obj] do
-					if bTst(ob_flags,flag) and not(bTst(ob_state,DISABLED)) and not(IsHidden) then
+					if bTst(ob_flags,flag) and not(bTst(ob_state,DISABLED)) and not(IsTreeHidden(tree,obj)) then
 						begin
 							find_object:=obj;
 							exit
@@ -10769,31 +12754,65 @@ function TApplication.ini_field(tree: PTree; start: integer): integer;
 	end;
 
 
-function TApplication.form_keybd(fo_ktree: PTree; fo_kobject,fo_kobnext,fo_kchar: integer; var fo_knxtobject,fo_knxtchar: integer): integer;
+function TApplication.form_keybd(pd: PDialog; fo_ktree: PTree; fo_kobject,fo_kobnext,fo_kchar,fo_kstat: integer; var fo_knxtobject,fo_knxtchar: integer): integer;
+	var pc: PControl;
 
 	begin
 		form_keybd:=1;
 		fo_knxtchar:=0;
 		case fo_kchar of
-			Tab: if (Kbshift(-1) and K_SHIFT)>0 then fo_knxtobject:=find_object(fo_ktree,fo_kobject,FMD_BACKWARD)
-					 else
-						 fo_knxtobject:=find_object(fo_ktree,fo_kobject,FMD_FORWARD);
-			Return,Enter: begin
-											fo_knxtobject:=find_object(fo_ktree,-1,FMD_DEFLT);
-											if fo_knxtobject=-1 then fo_knxtobject:=fo_kobject
-											else
-												form_keybd:=0
-										end;
-			Cur_Up:   fo_knxtobject:=find_object(fo_ktree,fo_kobject,FMD_BACKWARD);
-			Cur_Down: fo_knxtobject:=find_object(fo_ktree,fo_kobject,FMD_FORWARD);
-			Shift_Home,Shift_CD: fo_knxtobject:=find_object(fo_ktree,ini_field(fo_ktree,0),FMD_BACKWARD);
-			Home,Shift_CU: fo_knxtobject:=ini_field(fo_ktree,0)
+		Tab:
+			begin
+				if bTst(fo_kstat,K_CTRL) then
+					with pd^ do
+						begin
+							fo_knxtobject:=fo_kobject;
+							if pxfocus=nil then exit;
+							pc:=pxfocus;
+							repeat
+								if (fo_kstat and K_SHIFT)>0 then
+									begin
+										pc:=pc^.Previous;
+										if pc=nil then
+											begin
+												pc:=CtrlList;
+												while pc^.Next<>nil do pc:=pc^.Next
+											end
+									end
+								else
+									begin
+										pc:=pc^.Next;
+										if pc=nil then pc:=CtrlList
+									end
+							until (pc=pxfocus) or pc^.IsFlagSet(wb_ExtFocus);
+							SetExtFocus(pc^.ObjIndx)
+						end
+				else
+					if (fo_kstat and K_SHIFT)>0 then fo_knxtobject:=find_object(fo_ktree,fo_kobject,FMD_BACKWARD)
+					else
+						fo_knxtobject:=find_object(fo_ktree,fo_kobject,FMD_FORWARD)
+			end;
+		Return,Enter:
+			begin
+				fo_knxtobject:=find_object(fo_ktree,-1,FMD_DEFLT);
+				if fo_knxtobject=-1 then fo_knxtobject:=fo_kobject
+				else
+					form_keybd:=0
+			end;
+		Cur_Up:
+			fo_knxtobject:=find_object(fo_ktree,fo_kobject,FMD_BACKWARD);
+		Cur_Down:
+			fo_knxtobject:=find_object(fo_ktree,fo_kobject,FMD_FORWARD);
+		Shift_Home,Shift_CD:
+			fo_knxtobject:=find_object(fo_ktree,ini_field(fo_ktree,0),FMD_BACKWARD);
+		Home,Shift_CU:
+			fo_knxtobject:=ini_field(fo_ktree,0);
 		else
 			begin
 				fo_knxtobject:=fo_kobject;
 				fo_knxtchar:=fo_kchar
 			end
-		end;
+		end
 	end;
 
 
@@ -10810,7 +12829,7 @@ function TApplication.form_button(pd: PDialog; fo_bobject,fo_bclicks: integer; v
 		fo_bnxtobj:=0;
 		obs:=pd^.DlgTree^[fo_bobject].ob_state;
 		obf:=pd^.DlgTree^[fo_bobject].ob_flags;
-		if bTst(obs,DISABLED) or bTst(obf,HIDETREE) then exit;
+		if bTst(obs,DISABLED) or IsTreeHidden(pd^.DlgTree,fo_bobject) then exit;
 		wind_update(BEG_UPDATE);
 		wind_update(BEG_MCTRL);
 		if bTst(obf,SELECTABLE) then
@@ -10826,11 +12845,12 @@ function TApplication.form_button(pd: PDialog; fo_bobject,fo_bclicks: integer; v
 										robj:=pd^.DlgTree^[dummy].ob_head
 									else
 										robj:=dummy;
-									if bTst(pd^.DlgTree^[robj].ob_state,SELECTED) then
-										begin
-											objc_change(pd^.DlgTree,robj,0,0,0,1,1,pd^.DlgTree^[robj].ob_state and not(SELECTED),1);
-											pd^.ObjcPaint(robj,false)
-										end;
+									if bTst(pd^.DlgTree^[robj].ob_flags,RBUTTON) then
+										if bTst(pd^.DlgTree^[robj].ob_state,SELECTED) then
+											begin
+												objc_change(pd^.DlgTree,robj,0,0,0,1,1,pd^.DlgTree^[robj].ob_state and not(SELECTED),1);
+												pd^.ObjcPaint(robj,false)
+											end;
 								until robj=fo_bobject;
 								objc_change(pd^.DlgTree,fo_bobject,0,0,0,1,1,obs or SELECTED,1);
 								pd^.ObjcPaint(fo_bobject,false);
@@ -10916,7 +12936,7 @@ procedure TApplication.GOErrAlert(sign: integer; msg: string);
 function TApplication.XAccMR2HR(MR: TAppTypeMR): string;
 	label _raus;
 
-	const txt : array [0..25] of string[28] =
+	const txt : array [0..38] of string[33] =
 	       ('word processor',
 	        'DTP',
 	        'text editor',
@@ -10942,7 +12962,20 @@ function TApplication.XAccMR2HR(MR: TAppTypeMR): string;
 	        'CAD',
 	        'Datenkommunikation',
 	        'Desktop',
-	        'Programmiersprache');
+	        'Programmiersprache',
+	        'Traitement de textes',
+	        'DTP',
+	        'Editeur de textes',
+	        'Base de donnÇes',
+	        'Tableur',
+	        'Application graphique: Raster',
+	        'Application graphique vectorielle',
+	        'Application graphique gÇnÇrale',
+	        'Application musicale',
+	        'CAD',
+	        'DonnÇes de communication',
+	        'Bureau',
+	        'Environnement de programmation');
 
 	var ret: integer;
 
@@ -10964,63 +12997,16 @@ function TApplication.XAccMR2HR(MR: TAppTypeMR): string;
 			17492: ret:=11;
 			20549: ret:=12
 		end;
-		if (Attr.Country=FRG) or (Attr.Country=SWG) then inc(ret,13);
 		_raus:
-		if ret>=0 then XAccMR2HR:=txt[ret]
+		if ret>=0 then
+			begin
+				if Attr.Country=FRA then inc(ret,26)
+				else
+					if (Attr.Country=FRG) or (Attr.Country=SWG) then inc(ret,13);
+				XAccMR2HR:=txt[ret]
+			end
 		else
 			XAccMR2HR:=''
-	end;
-
-
-function TApplication.AlertBubbleWrap(txt: string; width: integer): string;
-	label _again;
-
-	var ret: string;
-	    t  : integer;
-
-	procedure add(s: string);
-		label _nochmal;
-
-		var i: integer;
-
-		begin
-			_nochmal:
-			StrPTrim(s);
-			if length(s)>width then
-				begin
-					i:=width;
-					while not(s[i] in [' ',',','.',';','?','!',':','-','+',')','\']) and (i>0) do dec(i);
-					if i=0 then i:=width;
-					ret:=ret+StrPTrimF(StrPLeft(s,i))+'|';
-					s:=StrPRight(s,length(s)-i);
-					goto _nochmal
-				end;
-			ret:=ret+s
-		end;
-
-	begin
-		if width<2 then width:=2;
-		ret:='';
-		_again:
-		StrPTrim(txt);
-		t:=pos('|',txt);
-		if t>0 then
-			begin
-				if t>width+1 then
-					begin
-						add(StrPLeft(txt,t-1));
-						ret:=ret+'|';
-						txt:=StrPRight(txt,length(txt)-t)
-					end
-				else
-					begin
-						ret:=ret+StrPTrimF(StrPLeft(txt,t-1))+'|';
-						txt:=StrPRight(txt,length(txt)-t)
-					end;
-				goto _again
-			end;
-		add(txt);
-		AlertBubbleWrap:=ret
 	end;
 
 
@@ -11056,6 +13042,27 @@ procedure	TApplication.FixResource(raddr: pointer; mode,what: boolean);
 	procedure FixBitBlks;
 		var obj: integer;
 
+		procedure cuthalf(var pfd: MFDB);
+			var q,w  : integer;
+			    p1,p2: pointer;
+
+			begin
+				with pfd do
+					if fd_h>2 then
+						begin
+							w:=fd_wdwidth shl 1;
+							p2:=pointer(longint(fd_addr)+w);
+							p1:=pointer(longint(p2)+w);
+							for q:=0 to ((fd_h-1) shr 1)-1 do
+								begin
+									move(p1^,p2^,w);
+									inc(longint(p1),w shl 1);
+									inc(longint(p2),w)
+								end
+						end;
+				pfd.fd_h:=pfd.fd_h shr 1
+			end;
+
 		begin
 			if rsh^.rsh_nib>0 then
 				for obj:=0 to rsh^.rsh_nib-1 do
@@ -11065,14 +13072,17 @@ procedure	TApplication.FixResource(raddr: pointer; mode,what: boolean);
 							if taddr<>nil then
 								begin
 									vdi_fix(theMFDB,taddr,ib_wicon,ib_hicon);
+									if hwratio>1 then cuthalf(theMFDB);
 									vr_convert(vdiHandle,theMFDB,FF_DEVSPEC)
 								end;
 							taddr:=ib_pmask;
 							if taddr<>nil then
 								begin
 									vdi_fix(theMFDB,taddr,ib_wicon,ib_hicon);
+									if hwratio>1 then cuthalf(theMFDB);
 									vr_convert(vdiHandle,theMFDB,FF_DEVSPEC)
-								end
+								end;
+							if hwratio>1 then ib_hicon:=ib_hicon shr 1
 						end;
 			if rsh^.rsh_nbb>0 then
 				for obj:=0 to rsh^.rsh_nbb-1 do
@@ -11082,8 +13092,10 @@ procedure	TApplication.FixResource(raddr: pointer; mode,what: boolean);
 							if taddr<>nil then
 								begin
 									vdi_fix(theMFDB,taddr,bi_wb shl 3,bi_hl);
+									if hwratio>1 then cuthalf(theMFDB);
 									vr_convert(vdiHandle,theMFDB,FF_DEVSPEC)
-								end
+								end;
+							if hwratio>1 then bi_hl:=bi_hl shr 1
 						end
 		end;
 
@@ -11162,7 +13174,9 @@ procedure	TApplication.FixResource(raddr: pointer; mode,what: boolean);
 						typ:=ob_type and $ff;
 						if (typ=G_TEXT) or (typ=G_BOXTEXT) or (typ=G_FTEXT) or
 						   (typ=G_FBOXTEXT) or (typ=G_BUTTON) or (typ=G_STRING) or
-						   (typ=G_TITLE ) or (typ=G_ICON) or (typ=G_IMAGE) then inc(ob_spec.index,offset)
+						   (typ=G_TITLE ) or (typ=G_ICON) or (typ=G_IMAGE) or (typ=G_CICON) then inc(ob_spec.index,offset);
+						if typ=G_CICON then
+							if not(HasColorIcons) then ob_type:=(ob_type and $ff00) or G_ICON
 					end;
 		if rsh^.rsh_nted>0 then
 			for obj:=0 to rsh^.rsh_nted-1 do
@@ -11188,6 +13202,10 @@ procedure	TApplication.FixResource(raddr: pointer; mode,what: boolean);
 			for obj:=0 to rsh^.rsh_nstring-1 do inc(longint(fstrpool^[obj]),offset);
 		if rsh^.rsh_nimages>0 then
 			for obj:=0 to rsh^.rsh_nimages-1 do inc(longint(fimgpool^[obj]),offset);
+		if bTst(rsh^.rsh_vrsn,4) then
+			begin
+				{ Farbicons... }
+			end;
 		_bitblks:
 		if mode=FIXRSC then FixBitBlks
 	end;
@@ -11209,11 +13227,11 @@ function TApplication.MenuCorrect(mt: PTree; var i: integer): boolean;
 								if ((ob_width>=SysInfo.Desktop.W) or (ob_height>=SysInfo.Desktop.H)) then
 									begin
 										MenuCorrect:=false;
-										exit
+										exit;
 									end;
 								objc_offset(mt,i,abs_x,abs_y);
-								if (abs_x>=(SysInfo.Desktop.X+SysInfo.Desktop.W-ob_width)) then dec(ob_x,abs_x+1-(SysInfo.Desktop.X+SysInfo.Desktop.W-ob_width))
-							end
+								if (abs_x>=(SysInfo.Desktop.X+SysInfo.Desktop.W-ob_width)) then dec(ob_x,abs_x+1-(SysInfo.Desktop.X+SysInfo.Desktop.W-ob_width));
+							end;
 				until bTst(mt^[i].ob_flags,LASTOB);
 				with mt^[ROOT] do
 					begin
@@ -11221,11 +13239,11 @@ function TApplication.MenuCorrect(mt: PTree; var i: integer): boolean;
 						ob_y:=0;
 						ob_width:=Attr.MaxPX+1;
 						ob_height:=Attr.MaxPY+1;
-						with mt^[ob_head] do ob_width:=mt^[ROOT].ob_width
+						with mt^[ob_head] do ob_width:=mt^[ROOT].ob_width;
 					end;
 				inc(i);
-				MenuCorrect:=true
-			end
+				MenuCorrect:=true;
+			end;
 	end;
 
 
@@ -11233,6 +13251,7 @@ procedure TApplication.MenuTune;
 	var i: integer;
 
 	begin
+		if agi.SysNiceline then exit;
 		i:=-1;
 		mnusr.ub_parm:=0;
 		mnusr.ub_code:=@DrawMenuRect;
@@ -11243,32 +13262,37 @@ procedure TApplication.MenuTune;
 					if bTst(ob_state,DISABLED) and (PChar(ob_spec.free_string)^='-') then
 						begin
 							ob_type:=G_USERDEF;
-							ob_spec.user_blk:=@mnusr
-						end
-		until bTst(MenuTree^[i].ob_flags,LASTOB)
+							ob_spec.user_blk:=@mnusr;
+						end;
+		until bTst(MenuTree^[i].ob_flags,LASTOB);
 	end;
 
 
 procedure TApplication.TitleSelect(pw: PWindow; indx: integer; select: boolean);
-	var box  : GRECT;
-	    start: integer;
+	var box,mbox: GRECT;
+	    start   : integer;
 
 	begin
 		with pw^ do
 			begin
 				wind_update(BEG_UPDATE);
 				with Class.MenuTree^[indx] do
-					if select then ob_state:=ob_state or SELECTED
-					else
-						ob_state:=ob_state and not(SELECTED);
+					begin
+						if select then ob_state:=ob_state or SELECTED
+						else
+							ob_state:=ob_state and not(SELECTED);
+						mbox.W:=ob_width;
+						mbox.H:=ob_height
+					end;
+				objc_offset(Class.MenuTree,indx,mbox.X,mbox.Y);
 				start:=Class.MenuTree^[ROOT].ob_head;
-				if select then start:=Class.MenuTree^[start].ob_head;
 				HideMouse;
 				wind_get(Attr.gemHandle,WF_FIRSTXYWH,box.X,box.Y,box.W,box.H);
 				while (box.W>0) and (box.H>0) do
 					begin
 						if rc_intersect(SysInfo.Desktop,box) then
-							with box do objc_draw(Class.MenuTree,start,MAX_DEPTH,X,Y,W,H);
+							if rc_intersect(mbox,box) then
+								with box do objc_draw(Class.MenuTree,start,MAX_DEPTH,X,Y,W,H);
 						wind_get(Attr.gemHandle,WF_NEXTXYWH,box.X,box.Y,box.W,box.H)
 					end;
 				ShowMouse;
@@ -11287,6 +13311,7 @@ constructor TDialog.Init(AParent: PWindow; ATitle: string; Indx: integer);
 	begin
 		if not(inherited Init(AParent,ATitle)) then fail;
 		dlgsize:=0;
+		magxedit:=(MagiCVersion>=$0510);
 		DisableAutoCreate;
 		if Indx<>id_No then
 			begin
@@ -11315,6 +13340,7 @@ destructor TDialog.Done;
 		next_obj:=0;
 		Cont:=false;
 		pedt:=nil;
+		pxfocus:=nil;
 		while (CtrlList<>nil) do CtrlList^.Free;
 		inherited Done
 	end;
@@ -11349,7 +13375,8 @@ procedure TDialog.GetWindowClass(var AWndClass: TWndClass);
 		inherited GetWindowClass(AWndClass);
 		with AWndClass do
 			begin
-				Style:=(Style and not(cs_CreateOnAccOpen or cs_AutoOpen or cs_QuitOnClose)) or cs_SaveBits or cs_WorkBackground;
+				Style:=(Style and not(cs_CreateOnAccOpen or cs_AutoOpen or cs_QuitOnClose or cs_OLGADocument)) or cs_SaveBits or cs_WorkBackground;
+				if bTst(Application^.Attr.Style,as_CancelOnClose) then Style:=Style or cs_CancelOnClose;
 				hbrBackground:=0
 			end
 	end;
@@ -11378,6 +13405,7 @@ function TDialog.IsDialog: boolean;
 
 procedure TDialog.LoadDialog(Indx: integer);
 	var tp,ntp: PTree;
+	    fehler: boolean;
 	    q     : integer;
 
 	begin
@@ -11391,9 +13419,70 @@ procedure TDialog.LoadDialog(Indx: integer);
 				if ntp=nil then Application^.Err:=em_InvalidDialog
 				else
 					begin
-						for q:=0 to dlgsize-1 do ntp^[q]:=tp^[q];
+						fehler:=false;
+						for q:=0 to dlgsize-1 do
+							begin
+								ntp^[q]:=tp^[q];
+								with ntp^[q] do
+									case (ob_type and $ff) of
+									G_TEXT,G_BOXTEXT,G_FTEXT,G_FBOXTEXT:
+										begin
+											getmem(ob_spec.ted_info,sizeof(TEDINFO));
+											if ob_spec.ted_info<>nil then
+												begin
+													ob_spec.ted_info^:=tp^[q].ob_spec.ted_info^;
+													with ob_spec.ted_info^ do
+														begin
+															getmem(te_ptext,te_txtlen);
+															if te_ptext<>nil then StrCopy(te_ptext,tp^[q].ob_spec.ted_info^.te_ptext)
+															else
+																fehler:=true
+														end
+												end
+											else
+												fehler:=true
+										end;
+									G_BUTTON,G_STRING,G_TITLE:
+										begin
+											getmem(ob_spec.free_string,StrLen(ob_spec.free_string)+1);
+											if ob_spec.free_string<>nil then StrCopy(ob_spec.free_string,tp^[q].ob_spec.free_string)
+											else
+												fehler:=true
+										end;
+									G_IMAGE:
+										begin
+											getmem(ob_spec.bit_blk,sizeof(BITBLK));
+											if ob_spec.bit_blk<>nil then ob_spec.bit_blk^:=tp^[q].ob_spec.bit_blk^
+											else
+												fehler:=true
+										end;
+									G_ICON:
+										begin
+											getmem(ob_spec.icon_blk,sizeof(ICONBLK));
+											if ob_spec.icon_blk<>nil then
+												begin
+													ob_spec.icon_blk^:=tp^[q].ob_spec.icon_blk^;
+													with ob_spec.icon_blk^ do
+														begin
+															getmem(ib_ptext,StrLen(ib_ptext)+1);
+															if ib_ptext<>nil then StrCopy(ib_ptext,tp^[q].ob_spec.icon_blk^.ib_ptext)
+															else
+																fehler:=true
+														end
+												end
+											else
+												fehler:=true
+										end
+									end
+							end;
 						SetDlgTree(ntp);
-						if Attr.Status=ws_Open then ForceRedraw
+						if fehler then
+							begin
+								FreeDialog;
+								Application^.Err:=em_InvalidDialog
+							end
+						else
+							if Attr.Status=ws_Open then ForceRedraw
 					end
 			end
 		else
@@ -11402,10 +13491,36 @@ procedure TDialog.LoadDialog(Indx: integer);
 
 
 procedure TDialog.FreeDialog;
+	var q: integer;
 
 	begin
 		if DlgTree<>nil then
-			if dlgsize>0 then freemem(DlgTree,dlgsize*sizeof(AESOBJECT));
+			if dlgsize>0 then
+				begin
+					for q:=0 to dlgsize-1 do
+						with DlgTree^[q] do
+							case (ob_type and $ff) of
+							G_TEXT,G_BOXTEXT,G_FTEXT,G_FBOXTEXT:
+								if ob_spec.ted_info<>nil then
+									begin
+										with ob_spec.ted_info^ do
+											if te_ptext<>nil then freemem(te_ptext,te_txtlen);
+										freemem(ob_spec.ted_info,sizeof(TEDINFO))
+									end;
+							G_BUTTON,G_STRING,G_TITLE:
+								if ob_spec.free_string<>nil then freemem(ob_spec.free_string,StrLen(ob_spec.free_string)+1);
+							G_IMAGE:
+								if ob_spec.bit_blk<>nil then freemem(ob_spec.bit_blk,sizeof(BITBLK));
+							G_ICON:
+								if ob_spec.icon_blk<>nil then
+									begin
+										with ob_spec.icon_blk^ do
+											if ib_ptext<>nil then freemem(ib_ptext,StrLen(ib_ptext)+1);
+										freemem(ob_spec.icon_blk,sizeof(ICONBLK))
+									end
+							end;
+					freemem(DlgTree,dlgsize*sizeof(AESOBJECT))
+				end;
 		inherited FreeDialog
 	end;
 
@@ -11443,9 +13558,14 @@ procedure TDialog.SetupSize;
 
 
 procedure TDialog.SetupWindow;
+	var vp: INFOVSCRPtr;
 
 	begin
 		Attr.ExStyle:=ws_ex_TryModeless or ws_ex_CenterOnce;
+		if GetCookie('VSCR',longint(vp)) then
+			if vp<>nil then
+				with vp^ do
+					if (cookie=$56534352) and (version>=$0100) then Attr.ExStyle:=(Attr.ExStyle and not(ws_ex_CenterOnce)) or ws_ex_Center;
 		if bTst(Application^.Attr.Style,as_MoveTransparent) then
 			Attr.ExStyle:=Attr.ExStyle or ws_ex_MoveTransparent
 		else
@@ -11453,14 +13573,17 @@ procedure TDialog.SetupWindow;
 				Attr.ExStyle:=Attr.ExStyle or ws_ex_MoveDial;
 		edit_obj:=0;
 		next_obj:=0;
+		extfocus:=id_No;
 		Cont:=false;
 		pedt:=nil;
+		pxfocus:=nil;
 		BValid:=false;
 		CtrlList:=nil;
 		TransferBuffer:=nil;
 		bsave:=true;
 		d0fly:=false;
 		obedflag:=false;
+		obedinit:=false;
 		IsModal:=false;
 		if Parent<>nil then
 			if Parent^.IsDialog then IsModal:=PDialog(Parent)^.IsModal;
@@ -11566,9 +13689,11 @@ procedure TDialog.OpenWindow;
 	var mx,my,dummy: integer;
 	    p          : PWindow;
 	    PaintInfo  : TPaintStruct;
+	    pc         : PControl;
 
 	begin
-		if Attr.Status=ws_Created then
+		if Attr.Status<>ws_Created then inherited OpenWindow
+		else
 			begin
 				if bTst(Attr.ExStyle,ws_ex_Popup) then
 					begin
@@ -11583,14 +13708,35 @@ procedure TDialog.OpenWindow;
 					end;
 				pedt:=nil;
 				Cont:=true;
+				pxfocus:=nil;
+				dummy:=extfocus;
+				extfocus:=id_No;
+				if dummy<1 then
+					begin
+						pc:=CtrlList;
+						while pc<>nil do
+							begin
+								if pc^.IsFlagSet(wb_ExtFocus) then
+									begin
+										dummy:=pc^.ObjIndx;
+										break
+									end;
+								pc:=pc^.Next
+							end
+					end;
+				nop;
+				SetExtFocus(dummy);
 				if edit_obj=0 then next_obj:=Application^.ini_field(DlgTree,0)
 				else
 					begin
 						next_obj:=edit_obj;
 						edit_obj:=0
 					end;
+				nop;
 				TransferData(tf_SetData);
-				if IsModal then
+				nop;
+				if not(IsModal) then inherited OpenWindow
+				else
 					begin
 						wind_update(BEG_UPDATE);
 						wind_update(BEG_MCTRL);
@@ -11617,11 +13763,7 @@ procedure TDialog.OpenWindow;
 									p:=Nxt
 								end
 					end
-				else
-					inherited OpenWindow
 			end
-		else
-			inherited OpenWindow
 	end;
 
 
@@ -11641,9 +13783,10 @@ procedure TDialog.CloseWindow;
 			begin
 				if edit_obj>0 then
 					begin
-						objc_edit(dummy,EDEND,Work.A2,true);
+						objc_edit(dummy,EDEND,K_NORMAL,Work.A2,true);
 						next_obj:=0;
 						Cont:=false;
+						pxfocus:=nil;
 						pedt:=nil
 					end;
 				if IsModal then
@@ -11696,20 +13839,35 @@ procedure TDialog.Paint(var PaintInfo: TPaintStruct);
 
 	begin
 		with PaintInfo.rcPaint do objc_draw(DlgTree,ROOT,MAX_DEPTH,X,Y,W,H);
+		if pxfocus<>nil then
+			begin
+				vs_clip(vdiHandle,CLIP_ON,PaintInfo.rcPaint.A2);
+				pxfocus^.ExtFocusPaint(PaintInfo.rcPaint)
+			end;
 		if (next_obj>0) and (edit_obj<>next_obj) then
 			begin
 				edit_obj:=next_obj;
 				next_obj:=0;
 				CallChanged(edit_obj,false,true,false);
-				objc_edit(dummy,EDINIT,PaintInfo.rcPaint.A2,false)
+				objc_edit(dummy,EDINIT,K_NORMAL,PaintInfo.rcPaint.A2,false)
 			end
 		else
 			if edit_obj>0 then
-				objc_edit(dummy,EDDRAW,PaintInfo.rcPaint.A2,false)
+				objc_edit(dummy,EDDRAW,K_NORMAL,PaintInfo.rcPaint.A2,false);
+		if IsModal then vs_clip(vdiHandle,CLIP_ON,SysInfo.Desktop.A2)
+		else
+			vs_clip(Application^.vdiHandle,CLIP_ON,PaintInfo.rcPaint.A2)
 	end;
 
 
 procedure TDialog.ObjcPaint(Indx: integer; Lazy: boolean);
+
+	begin
+		ObjcPaintRect(Indx,SysInfo.Desktop,Lazy)
+	end;
+
+
+procedure TDialog.ObjcPaintRect(Indx: integer; const Rect: GRECT; Lazy: boolean);
 	label _weiter;
 
 	var box    : GRECT;
@@ -11722,7 +13880,9 @@ procedure TDialog.ObjcPaint(Indx: integer; Lazy: boolean);
 					if IsModal then
 						begin
 							HideMouse;
-							with SysInfo.Desktop do objc_draw(DlgTree,Indx,MAX_DEPTH,X,Y,W,H);
+							with Rect do objc_draw(DlgTree,Indx,MAX_DEPTH,X,Y,W,H);
+							if pxfocus<>nil then
+								if Indx=extfocus then pxfocus^.ExtFocusPaint(Rect);
 							ShowMouse
 						end
 					else
@@ -11740,9 +13900,19 @@ procedure TDialog.ObjcPaint(Indx: integer; Lazy: boolean);
 							visible:=FirstWorkRect(box);
 							while visible do
 								begin
-									with box do objc_draw(DlgTree,Indx,MAX_DEPTH,X,Y,W,H);
+									if rc_intersect(Rect,box) then
+										begin
+											with box do objc_draw(DlgTree,Indx,MAX_DEPTH,X,Y,W,H);
+											if pxfocus<>nil then
+												if Indx=extfocus then
+													begin
+														vs_clip(vdiHandle,CLIP_ON,box.A2);
+														pxfocus^.ExtFocusPaint(box)
+													end
+										end;
 									visible:=NextWorkRect(box)
 								end;
+							vs_clip(vdiHandle,CLIP_ON,SysInfo.Desktop.A2);
 							ShowMouse;
 							wind_update(END_UPDATE)
 						end
@@ -11797,30 +13967,37 @@ procedure TDialog.WMClosed;
 		if valid then
 			begin
 				if indx>=0 then
-					DlgTree^[indx].ob_state:=DlgTree^[indx].ob_state and not(SELECTED);
+					if bTst(DlgTree^[indx].ob_flags,SELECTABLE) then
+						DlgTree^[indx].ob_state:=DlgTree^[indx].ob_state and not(SELECTED);
 				Destroy;
 				if bTst(Class.Style,cs_QuitOnClose) then
-					with Application^ do if ChkError>=em_OutOfMemory then Quit
+					begin
+						with Application^ do if ChkError>=em_OutOfMemory then Quit
+					end
+				else
+					if bTst(Class.Style,cs_FreeOnClose) then Free
 			end
 		else
 			if indx>=0 then
-				begin
-					DlgTree^[indx].ob_state:=DlgTree^[indx].ob_state and not(SELECTED);
-					if bTst(DlgTree^[indx].ob_flags,SELECTABLE) then ObjcPaint(indx,false)
-				end
+				if bTst(DlgTree^[indx].ob_flags,SELECTABLE) then
+					begin
+						DlgTree^[indx].ob_state:=DlgTree^[indx].ob_state and not(SELECTED);
+						ObjcPaint(indx,false)
+					end
 	end;
 
 
 procedure TDialog.WMButton(mX,mY,BStat,KStat,Clicks: integer);
 	label _fly;
 
-	var nx,dummy,d2: integer;
-	    valid      : boolean;
-	    pct        : PControl;
-	    pinfo      : TPaintStruct;
-	    ltmove     : function(d1,d2: pointer; d3,d4,d5: longint; tree: PTree; x,y: integer): integer;
+	var nx,dummy,
+	    d2,oldtype: integer;
+	    pinfo     : TPaintStruct;
+	    kbh       : PEvent;
+	    ltmove    : function(d1,d2: pointer; d3,d4,d5: longint; tree: PTree; x,y: integer): integer;
 
 	begin
+		kbh:=GetKBHandler;
 		nx:=objc_find(DlgTree,ROOT,MAX_DEPTH,mX,mY);
 		if BStat=2 then
 			begin
@@ -11832,17 +14009,7 @@ procedure TDialog.WMButton(mX,mY,BStat,KStat,Clicks: integer);
 				else
 					if nx>=0 then
 						begin
-							valid:=false;
-							pct:=CtrlList;
-							while (pct<>nil) do
-								with pct^ do
-									begin
-										if TestIndex(nx) then
-											if IsHelpAvailable then valid:=true;
-										pct:=Nxt
-									end;
-							if valid then
-								if kbdh<>nil then kbdh^.TestKey(0,S_Help);
+							if IsHelpAvailable(mX,mY) then Application^.BubbleHelp(mX,mY,GetHelp(mX,mY),false,false);
 							exit
 						end
 			end;
@@ -11887,7 +14054,7 @@ procedure TDialog.WMButton(mX,mY,BStat,KStat,Clicks: integer);
 								ExitPaint;
 								ShowMouse
 							end;
-						Bconout(2,BEL)
+						Application^.Bing
 					end
 				else
 					inherited WMButton(mX,mY,BStat,KStat,Clicks);
@@ -11896,8 +14063,13 @@ procedure TDialog.WMButton(mX,mY,BStat,KStat,Clicks: integer);
 		if BStat<>1 then exit;
 		if DlgTree^[nx].ob_flags and (SELECTABLE or DEFAULT or F_EXIT or EDITABLE or RBUTTON or TOUCHEXIT)=0 then
 			begin
+				oldtype:=DlgTree^[nx].ob_type and $00ff;
+				if (oldtype=G_FTEXT) or (oldtype=G_FBOXTEXT) then
+					if SelectDisabled(nx,KStat,Clicks) then exit;
 				_fly:
-				if d0fly and (Clicks=1) then MoveDial(mX,mY);
+				if not(IsModal) then Top
+				else
+					if d0fly and (Clicks=1) then MoveDial(mX,mY);
 				exit
 			end;
 		if not(bTst(DlgTree^[nx].ob_state,DISABLED)) then
@@ -11915,33 +14087,46 @@ procedure TDialog.WMButton(mX,mY,BStat,KStat,Clicks: integer);
 					begin
 						if (next_obj>0) and (edit_obj<>next_obj) then
 							begin
-								objc_edit(dummy,EDEND,Work.A2,true);
+								objc_edit(dummy,EDEND,K_NORMAL,Work.A2,true);
 								edit_obj:=next_obj;
 								next_obj:=0;
 								CallChanged(edit_obj,false,true,false);
-								objc_edit(dummy,EDINIT,Work.A2,true)
+								objc_edit(dummy,EDINIT,K_NORMAL,Work.A2,true)
 							end
 						else
 							begin
 								if next_obj<=0 then CallChanged(nx,false,false,true)
 								else
-									objc_edit(mX,EDIDX,Work.A2,true)
+									objc_edit(mX,EDIDXPOS,K_NORMAL,Work.A2,true)
 							end
 					end
 			end
 		else
-			goto _fly
+			if not(SelectDisabled(nx,KStat,Clicks)) then goto _fly
+	end;
+
+
+function TDialog.SelectDisabled(AnIndx,KStat,Clicks: integer): boolean;
+
+	begin
+		SelectDisabled:=false
 	end;
 
 
 procedure TDialog.Execute;
-	var evnt,mx,my,mb,ks,kr,br: integer;
-	    pipe                  : Pipearray;
-	    gmnr                  : HCursor;
-	    gmform                : MFORM;
+	var evnt,mx,my,
+	    mb,ks,kr,br,
+	    eventmask  : integer;
+	    modtimer   : longint;
+	    pipe       : Pipearray;
+	    gmnr       : HCursor;
+	    gmform     : MFORM;
+	    kbh        : PEvent;
+	    valid      : boolean;
 
 	begin
 		if not(IsModal) then exit;
+		kbh:=GetKBHandler;
 		GetMouse(gmnr,gmform);
 		if Class.hCursor>id_No then
 			begin
@@ -11952,6 +14137,7 @@ procedure TDialog.Execute;
 		else
 			SetMouse(ARROW,nil);
 		if bTst(Attr.ExStyle,ws_ex_MoveDial) then d0fly:=true;
+		eventmask:=MU_KEYBD or MU_BUTTON;
 		while Cont do
 			begin
 				if (next_obj>0) and (edit_obj<>next_obj) then
@@ -11959,13 +14145,40 @@ procedure TDialog.Execute;
 						edit_obj:=next_obj;
 						next_obj:=0;
 						CallChanged(edit_obj,false,true,false);
-						objc_edit(evnt,EDINIT,Work.A2,false)
+						objc_edit(evnt,EDINIT,K_NORMAL,Work.A2,false)
 					end;
-				evnt:=evnt_multi(MU_KEYBD or MU_BUTTON,258,3,0,0,0,0,0,0,0,0,0,0,0,pipe,0,0,mx,my,mb,ks,kr,br);
+				modtimer:=GetModalTimer;
+				if modtimer>0 then eventmask:=eventmask or MU_TIMER
+				else
+					eventmask:=eventmask and not(MU_TIMER);
+				evnt:=evnt_multi(eventmask,258,3,0,0,0,0,0,0,0,0,0,0,0,pipe,modtimer mod 65536,modtimer div 65536,mx,my,mb,ks,kr,br);
 				if bTst(evnt,MU_KEYBD) then
-					if kbdh<>nil then kbdh^.TestKey(ks,kr);
+					begin
+						valid:=true;
+						if ks=K_CTRL then
+							case kr of
+							Ctrl_X:
+								begin
+									Cut;
+									valid:=false
+								end;
+							Ctrl_C:
+								begin
+									Copy;
+									valid:=false
+								end;
+							Ctrl_V:
+								begin
+									Paste;
+									valid:=false
+								end
+							end;
+						if valid then
+							if kbh<>nil then kbh^.TestKey(ks,kr)
+					end;
 				if bTst(evnt,MU_BUTTON) then WMButton(mx,my,mb,ks,br);
-				if (next_obj>0) and (next_obj<>edit_obj) then objc_edit(evnt,EDEND,Work.A2,false)
+				if bTst(evnt,MU_TIMER) then HandleModalTimer;
+				if (next_obj>0) and (next_obj<>edit_obj) then objc_edit(evnt,EDEND,K_NORMAL,Work.A2,false)
 			end;
 		d0fly:=false;
 		SetMouse(gmnr,@gmform)
@@ -12024,15 +14237,18 @@ procedure TDialog.EndDlg(Indx: integer; DblClick: boolean);
 		if not(valid) then goto _cont;
 		if CanClose then
 			begin
-				DlgTree^[Indx].ob_state:=DlgTree^[Indx].ob_state and not(SELECTED);
+				if bTst(DlgTree^[Indx].ob_flags,SELECTABLE) then DlgTree^[Indx].ob_state:=DlgTree^[Indx].ob_state and not(SELECTED);
 				Destroy
 			end
 		else
 			begin
 				_cont:
 				Cont:=true;
-				DlgTree^[Indx].ob_state:=DlgTree^[Indx].ob_state and not(SELECTED);
-				if bTst(DlgTree^[Indx].ob_flags,SELECTABLE) then ObjcPaint(Indx,false)
+				if bTst(DlgTree^[Indx].ob_flags,SELECTABLE) then
+					begin
+						DlgTree^[Indx].ob_state:=DlgTree^[Indx].ob_state and not(SELECTED);
+						ObjcPaint(Indx,false)
+					end
 			end
 	end;
 
@@ -12050,7 +14266,7 @@ procedure TDialog.TransferData(Direction: word);
 					with p^ do
 						begin
 							if IsFlagSet(wb_Transfer) then
-								inc(longint(tp),Transfer(tp,Direction));
+								inc(longint(tp),longint(Transfer(tp,Direction)));
 							p:=Nxt
 						end
 			end
@@ -12109,6 +14325,13 @@ function TDialog.Esc: boolean;
 	end;
 
 
+function TDialog.TestFKey(fNum: integer): integer;
+
+	begin
+		TestFKey:=id_No
+	end;
+
+
 procedure TDialog.Cut;
 
 	begin
@@ -12131,9 +14354,11 @@ procedure TDialog.Paste;
 
 
 procedure TDialog.Delete;
+	var kbh: PEvent;
 
 	begin
-		if kbdh<>nil then kbdh^.TestKey(K_NORMAL,S_Delete)
+		kbh:=GetKBHandler;
+		if kbh<>nil then kbh^.TestKey(K_NORMAL,S_Delete)
 	end;
 
 
@@ -12265,11 +14490,21 @@ function TDialog.GetDefaultButton: integer;
 	end;
 
 
+function TDialog.InsertChar(ch: char): boolean;
+	var key: integer;
+
+	begin
+		key:=ord(ch);
+		objc_edit(key,EDCHAR,K_NORMAL,Work.A2,true);
+		InsertChar:=(key=0)
+	end;
+
+
 procedure TDialog.InitFocus;
 	var dummy: integer;
 
 	begin
-		if edit_obj>0 then objc_edit(dummy,EDEND,Work.A2,true);
+		if edit_obj>0 then objc_edit(dummy,EDEND,K_NORMAL,Work.A2,true);
 		edit_obj:=0;
 		next_obj:=Application^.ini_field(DlgTree,0);
 		if next_obj>0 then
@@ -12277,7 +14512,7 @@ procedure TDialog.InitFocus;
 				edit_obj:=next_obj;
 				next_obj:=0;
 				CallChanged(edit_obj,false,true,false);
-				objc_edit(dummy,EDINIT,Work.A2,true)
+				objc_edit(dummy,EDINIT,K_NORMAL,Work.A2,true)
 			end
 	end;
 
@@ -12288,13 +14523,13 @@ procedure TDialog.SetFocus(Obj: integer);
 	begin
 		if Obj>0 then
 			begin
-				if (DlgTree^[Obj].ob_flags and (EDITABLE or HIDETREE)=EDITABLE) and not(bTst(DlgTree^[Obj].ob_state,DISABLED)) then
+				if bTst(DlgTree^[Obj].ob_flags,EDITABLE) and not(Application^.IsTreeHidden(DlgTree,Obj)) and not(bTst(DlgTree^[Obj].ob_state,DISABLED)) then
 					begin
-						if edit_obj>0 then objc_edit(dummy,EDEND,Work.A2,true);
+						if edit_obj>0 then objc_edit(dummy,EDEND,K_NORMAL,Work.A2,true);
 						edit_obj:=Obj;
 						next_obj:=0;
 						CallChanged(edit_obj,false,true,false);
-						objc_edit(dummy,EDINIT,Work.A2,true)
+						objc_edit(dummy,EDINIT,K_NORMAL,Work.A2,true)
 					end
 				else
 					InitFocus
@@ -12310,6 +14545,60 @@ function TDialog.GetFocus: integer;
 		if edit_obj>0 then GetFocus:=edit_obj
 		else
 			GetFocus:=id_No
+	end;
+
+
+procedure TDialog.SetExtFocus(Obj: integer);
+	var pc,nc: PControl;
+
+	begin
+		if Obj<0 then Obj:=id_No;
+		if Obj=GetExtFocus then exit;
+		nc:=nil;
+		if Obj>=0 then
+			begin
+				pc:=CtrlList;
+				while pc<>nil do
+					begin
+						if pc^.TestIndex(Obj) then
+							if pc^.IsFlagSet(wb_ExtFocus) then
+								begin
+									nc:=pc;
+									break
+								end;
+						pc:=pc^.Next
+					end
+			end;
+		if pxfocus<>nil then
+			begin
+				pc:=pxfocus;
+				pxfocus:=nil;
+				pc^.Paint
+			end;
+		if nc<>nil then
+			begin
+				pxfocus:=nc;
+				extfocus:=Obj;
+				pxfocus^.Paint
+			end
+		else
+			extfocus:=id_No
+	end;
+
+
+function TDialog.GetExtFocus: integer;
+
+	begin
+		if extfocus<0 then GetExtFocus:=id_No
+		else
+			GetExtFocus:=extfocus
+	end;
+
+
+function TDialog.HasActiveFocus(obj: integer): boolean;
+
+	begin
+		HasActiveFocus:=not(obedflag) and obedinit and (GetFocus=obj)
 	end;
 
 
@@ -12335,6 +14624,44 @@ procedure TDialog.CallChanged(Indx: integer; dclk,edt,push: boolean);
 	end;
 
 
+function TDialog.GetHelp(mX,mY: integer): string;
+	var indx: integer;
+	    pc  : PControl;
+
+	begin
+		GetHelp:='';
+		if IsIconified then exit;
+		indx:=objc_find(DlgTree,ROOT,MAX_DEPTH,mX,mY);
+		if indx>=0 then
+			begin
+				pc:=CtrlList;
+				while pc<>nil do
+					begin
+						if pc^.TestIndex(indx) then
+							begin
+								if pc^.IsHelpAvailable then GetHelp:=pc^.GetHelp;
+								exit
+							end;
+						pc:=pc^.Next
+					end
+			end;
+		GetHelp:=inherited GetHelp(mX,mY)
+	end;
+
+
+function TDialog.GetModalTimer: longint;
+
+	begin
+		GetModalTimer:=0
+	end;
+
+
+procedure TDialog.HandleModalTimer;
+
+	begin
+	end;
+
+
 	{ private }
 
 
@@ -12355,7 +14682,7 @@ procedure TDialog.MoveDial(mX,mY: integer);
 				exit
 			end;
 		if bTst(Attr.ExStyle,ws_ex_MoveTransparent) then RestoreBackground;
-		gem.graf_mouse(FLAT_HAND,nil);
+		graf_mouse(FLAT_HAND,nil);
 		graf_dragbox(Curr.W,Curr.H,Curr.X,Curr.Y,SysInfo.Desktop.X,SysInfo.Desktop.Y,SysInfo.Desktop.W+Curr.X+Curr.W-mX-1,SysInfo.Desktop.H+Curr.Y+Curr.H-mY-1,nx,ny);
 		HideMouse;
 		if (Curr.X<>nx) or (Curr.Y<>ny) or bTst(Attr.ExStyle,ws_ex_MoveTransparent) then
@@ -12375,7 +14702,7 @@ procedure TDialog.MoveDial(mX,mY: integer);
 				Paint(pinfo);
 				ExitPaint
 			end;
-		gem.graf_mouse(maus.currnr,@maus.currform);
+		graf_mouse(maus.currnr,@maus.currform);
 		ShowMouse
 	end;
 
@@ -12471,13 +14798,32 @@ procedure TDialog.RestoreBackground;
 	end;
 
 
-function TDialog.objc_edit(var ob_edchar: integer; ob_edkind: integer; clp: ARRAY_4; cclp: boolean): integer;
+function TDialog.objc_edit(var ob_edchar: integer; ob_edkind,ob_kstat: integer; clp: ARRAY_4; cclp: boolean): integer;
 	label _delline,_edidx;
 
-	var typ,ox,oy,toffs,q,chw,vlen: integer;
-	    pted                      : TEDINFOPtr;
-	    thechar,vchar             : char;
+	var typ,ox,oy,toffs,
+	    q,chw,vlen     : integer;
+	    pted           : TEDINFOPtr;
+	    mgvalid,doedit : boolean;
+	    thechar,vchar  : char;
+	    mr             : GRECT;
 
+	function getptmplt: pointer;
+	
+		begin
+			if pted^.te_ptmplt<>nil then getptmplt:=pted^.te_ptmplt
+			else
+				getptmplt:=PXTED(pted^.te_pvalid)^.xte_ptmplt
+		end;
+	
+	function getpvalid: pointer;
+	
+		begin
+			if pted^.te_ptmplt<>nil then getpvalid:=pted^.te_pvalid
+			else
+				getpvalid:=PXTED(pted^.te_pvalid)^.xte_pvalid
+		end;
+	
 	function ValidChar(mask: char): boolean;
 
 		begin
@@ -12519,17 +14865,49 @@ function TDialog.objc_edit(var ob_edchar: integer; ob_edkind: integer; clp: ARRA
 		begin
 			getmaxidx:=StrLen(pted^.te_ptext)
 		end;
+	
+	procedure checkscroll;
+	
+		begin
+			if pted^.te_ptmplt=nil then
+				if idx-PXTED(pted^.te_pvalid)^.xte_scroll>PXTED(pted^.te_pvalid)^.xte_vislen then
+					PXTED(pted^.te_pvalid)^.xte_scroll:=idx-PXTED(pted^.te_pvalid)^.xte_vislen
+		end;
+	
+	procedure scrollto0;
+	
+		begin
+			idx:=0;
+			if pted^.te_ptmplt=nil then PXTED(pted^.te_pvalid)^.xte_scroll:=0;
+			if pedt<>nil then pedt^.EdIdx:=0
+		end;
+	
+	procedure scrolltoend;
+	
+		begin
+			idx:=getmaxidx;
+			if pted^.te_ptmplt=nil then PXTED(pted^.te_pvalid)^.xte_scroll:=Max(0,idx-PXTED(pted^.te_pvalid)^.xte_vislen);
+			if pedt<>nil then pedt^.EdIdx:=idx
+		end;
+	
+	procedure decscroll;
+	
+		begin
+			dec(idx);
+			if pted^.te_ptmplt=nil then
+				if idx<PXTED(pted^.te_pvalid)^.xte_scroll then PXTED(pted^.te_pvalid)^.xte_scroll:=idx;
+			if pedt<>nil then pedt^.EdIdx:=idx
+		end;
 
 	procedure eprint(ce: boolean);
 		var ot: integer;
 
 		begin
 			if ce then if pedt<>nil then pedt^.Edit;
-			if idx>getmaxidx then
-				begin
-					idx:=getmaxidx;
-					if pedt<>nil then pedt^.EdIdx:=idx
-				end;
+			if idx>getmaxidx then scrolltoend;
+			if pedt<>nil then
+				if bTst(pedt^.Style,es_Password) then
+					StrPCopy(pted^.te_ptext,StrPFill(StrLen(pted^.te_ptext),'*'));
 			ot:=DlgTree^[edit_obj].ob_type;
 			DlgTree^[edit_obj].ob_type:=G_FTEXT;
 			ObjcPaint(edit_obj,false);
@@ -12549,16 +14927,17 @@ function TDialog.objc_edit(var ob_edchar: integer; ob_edkind: integer; clp: ARRA
 				anz:=0;
 				while anz<idx do
 					begin
-						if PChar(longint(pted^.te_ptmplt)+q)^='_' then inc(anz);
+						if PChar(longint(getptmplt)+q)^='_' then inc(anz);
 						inc(q)
 					end;
 				if idx<pted^.te_txtlen-1 then
-					while PChar(longint(pted^.te_ptmplt)+q)^<>'_' do inc(q);
+					while PChar(longint(getptmplt)+q)^<>'_' do inc(q);
+				if pted^.te_ptmplt=nil then dec(q,PXTED(pted^.te_pvalid)^.xte_scroll);
 				vswr_mode(Application^.vdiHandle,MD_XOR);
 				pxya[0]:=ox+(q-toffs)*chw;
 				pxya[1]:=oy;
 				pxya[2]:=pxya[0];
-				pxya[3]:=oy+SysInfo.SFHeight+2;
+				pxya[3]:=oy+SysInfo.Font.Height+2;
 				HideMouse;
 				v_pline(Application^.vdiHandle,2,pxya);
 				ShowMouse;
@@ -12579,8 +14958,142 @@ function TDialog.objc_edit(var ob_edchar: integer; ob_edkind: integer; clp: ARRA
 					vs_clip(Application^.vdiHandle,CLIP_ON,SysInfo.Desktop.A2)
 				end
 		end;
+	
+	procedure magxcursor;
+		var box    : GRECT;
+		    visible: boolean;
+	
+		begin
+			if not(cclp) or IsModal then objc_xedit(DlgTree,edit_obj,ob_edchar,idx,ED_DRAW,nil)
+			else
+				begin
+					visible:=FirstWorkRect(box);
+					while visible do
+						begin
+							objc_xedit(DlgTree,edit_obj,ob_edchar,idx,ED_DRAW,@box);
+							visible:=NextWorkRect(box)
+						end
+				end
+		end;
 
 	begin
+		if magxedit then
+			begin
+				case ob_edkind of
+				EDINIT:
+					begin
+						obedinit:=true;
+						if pedt<>nil then idx:=pedt^.EdIdx
+						else
+							idx:=-1;
+						if IsModal then objc_edit:=Gem.objc_edit(DlgTree,edit_obj,ob_edchar,idx,EDINIT)
+						else
+							objc_edit:=objc_wedit(DlgTree,edit_obj,ob_edchar,idx,EDINIT,Attr.gemHandle)
+					end;
+				EDCHAR:
+					begin
+						obedflag:=true;
+						case ob_edchar of
+						S_Esc,BackSpace,S_Delete:
+							begin
+								if pedt<>nil then
+									if bTst(pedt^.Style,es_Password) then ob_edchar:=S_Esc;
+								mgvalid:=true;
+								doedit:=true
+							end;
+						Cur_Left,Cur_Right,
+						Shift_CL,$7300,Shift_CR,$7400:
+							begin
+								mgvalid:=true;
+								doedit:=false
+							end;
+						S_Undo:
+							begin
+								if pedt<>nil then
+									if pedt^.CanUndo then
+										begin
+											obedflag:=false;
+											pedt^.Undo;
+											obedflag:=true
+										end;
+								ob_edchar:=0;
+								mgvalid:=false;
+								doedit:=false
+							end
+						else
+							begin
+								mgvalid:=lo(ob_edchar)>=32;
+								doedit:=mgvalid
+							end
+						end;
+						if mgvalid then
+							begin
+								if IsModal then objc_edit:=Gem.objc_edit(DlgTree,edit_obj,ob_edchar,idx,EDCHAR)
+								else
+									objc_edit:=objc_wedit(DlgTree,edit_obj,ob_edchar,idx,EDCHAR,Attr.gemHandle);
+								if pedt<>nil then
+									begin
+										pedt^.EdIdx:=idx;
+										if doedit then
+											begin
+												pedt^.Edit;
+												if bTst(pedt^.Style,es_Password) then
+													begin
+														pted:=DlgTree^[edit_obj].ob_spec.ted_info;
+														magxcursor;
+														StrPCopy(pted^.te_ptext,StrPFill(StrLen(pted^.te_ptext),'*'));
+														ObjcPaint(edit_obj,bTst(pedt^.Flags,wb_Lazy));
+														magxcursor
+													end
+											end
+									end;
+								ob_edchar:=0
+							end
+						else
+							objc_edit:=1;
+						obedflag:=false
+					end;
+				EDEND:
+					begin
+						if IsModal then objc_edit:=Gem.objc_edit(DlgTree,edit_obj,ob_edchar,idx,EDEND)
+						else
+							objc_edit:=objc_wedit(DlgTree,edit_obj,ob_edchar,idx,EDEND,Attr.gemHandle);
+						if pedt<>nil then pedt^.EdIdx:=idx;
+						obedinit:=false
+					end;
+				EDDRAW:
+					begin
+						mr.A2:=clp;
+						A2toGR(mr);
+						objc_edit:=objc_xedit(DlgTree,edit_obj,ob_edchar,idx,ED_DRAW,@mr)
+					end;
+				EDIDXPOS:
+					begin
+						if IsModal then
+							begin
+								Gem.objc_edit(DlgTree,edit_obj,0,idx,EDEND);
+								objc_edit:=Gem.objc_edit(DlgTree,edit_obj,ob_edchar,idx,ED_CRSR)
+							end
+						else
+							begin
+								objc_wedit(DlgTree,edit_obj,0,idx,EDEND,Attr.gemHandle);
+								objc_edit:=objc_wedit(DlgTree,edit_obj,ob_edchar,idx,ED_CRSR,Attr.gemHandle)
+							end;
+						if pedt<>nil then pedt^.EdIdx:=idx
+					end;
+				EDIDXABS:
+					begin
+						magxcursor;
+						idx:=ob_edchar;
+						magxcursor;
+						if pedt<>nil then pedt^.EdIdx:=idx;
+						objc_edit:=1
+					end;
+				else
+					objc_edit:=0;
+				end;
+				exit
+			end;
 		typ:=DlgTree^[edit_obj].ob_type and $ff;
 		if (typ=G_FTEXT) or (typ=G_FBOXTEXT) then
 			begin
@@ -12588,10 +15101,10 @@ function TDialog.objc_edit(var ob_edchar: integer; ob_edkind: integer; clp: ARRA
 				pted:=DlgTree^[edit_obj].ob_spec.ted_info;
 				objc_offset(DlgTree,edit_obj,ox,oy);
 				toffs:=0;
-				inc(oy,((DlgTree^[edit_obj].ob_height-SysInfo.SFHeight) shr 1)-1);
-				while (PChar(longint(pted^.te_ptmplt)+toffs)^<>'_') and (PChar(longint(pted^.te_ptmplt)+toffs)^<>#0) do inc(toffs);
+				inc(oy,((DlgTree^[edit_obj].ob_height-SysInfo.Font.Height) shr 1)-1);
+				while (PChar(longint(getptmplt)+toffs)^<>'_') and (PChar(longint(getptmplt)+toffs)^<>#0) do inc(toffs);
 				if pted^.te_font=SMALL then chw:=6
-					else chw:=SysInfo.SFWidth;
+					else chw:=SysInfo.Font.Width;
 				inc(ox,toffs*chw);
 				case pted^.te_just of
 					TE_RIGHT: ox:=ox+DlgTree^[edit_obj].ob_width-(pted^.te_tmplen-1)*chw;
@@ -12600,14 +15113,17 @@ function TDialog.objc_edit(var ob_edchar: integer; ob_edkind: integer; clp: ARRA
 				vs_clip(Application^.vdiHandle,CLIP_ON,clp);
 				case ob_edkind of
 				EDINIT: begin
-									if PChar(pted^.te_ptext)^='@' then PChar(pted^.te_ptext)^:=#0;
-									if pedt<>nil then idx:=pedt^.EdIdx
-										else idx:=-1;
-									if (idx<0) or (idx>getmaxidx) then
+									obedinit:=true;
+									if PChar(pted^.te_ptext)^='@' then
 										begin
-											idx:=getmaxidx;
-											if pedt<>nil then pedt^.EdIdx:=idx
+											if pedt=nil then PChar(pted^.te_ptext)^:=#0
+											else
+												if pedt^.firstchar then PChar(pted^.te_ptext)^:=#0
 										end;
+									if pedt<>nil then idx:=pedt^.EdIdx
+									else
+										idx:=-1;
+									if (idx<0) or (idx>getmaxidx) then scrolltoend;
 									cursor
 								end;
 				EDCHAR: begin
@@ -12617,15 +15133,19 @@ function TDialog.objc_edit(var ob_edchar: integer; ob_edkind: integer; clp: ARRA
 									case ob_edchar of
 										S_Esc: begin
 														 PChar(pted^.te_ptext)^:=#0;
-														 idx:=0;
-														 if pedt<>nil then pedt^.EdIdx:=0;
+														 scrollto0;
 														 eprint(true)
 													 end;
 										BackSpace: begin
+			                           if pedt<>nil then
+			                             if bTst(pedt^.Style,es_Password) then
+			                               begin
+			                                 ob_edchar:=S_Esc;
+			                                 goto _delline
+			                               end;
 																 if idx>0 then
 																	 begin
-																		 dec(idx);
-																		 if pedt<>nil then pedt^.EdIdx:=idx;
+																	   decscroll;
 																		 typ:=getmaxidx-1;
 																		 if typ>idx then
 																			 for q:=idx to typ-1 do
@@ -12636,6 +15156,12 @@ function TDialog.objc_edit(var ob_edchar: integer; ob_edkind: integer; clp: ARRA
 																 ob_edchar:=0
 															 end;
 										S_Delete: begin
+			                          if pedt<>nil then
+			                            if bTst(pedt^.Style,es_Password) then
+			                              begin
+			                                ob_edchar:=S_Esc;
+			                                goto _delline
+			                              end;
 																if (Kbshift(-1) and K_SHIFT)>0 then
 																	begin
 																		ob_edchar:=S_Esc;
@@ -12653,31 +15179,34 @@ function TDialog.objc_edit(var ob_edchar: integer; ob_edkind: integer; clp: ARRA
 																ob_edchar:=0
 															end;
 										Cur_Left: begin
-																if idx>0 then
-																	begin
-																		dec(idx);
-																		if pedt<>nil then pedt^.EdIdx:=idx
-																	end;
+																if idx>0 then decscroll;
+																eprint(false);
 																ob_edchar:=0
 															end;
 										Cur_Right: begin
 																 if idx<getmaxidx then
 																	 begin
 																		 inc(idx);
-																		 if pedt<>nil then pedt^.EdIdx:=idx
+																		 checkscroll;
+																		 if pedt<>nil then pedt^.EdIdx:=idx;
+																		 eprint(false)
 																	 end;
 																 ob_edchar:=0
 															 end;
-										Shift_CL,$7300: begin
-																			idx:=0;
-																			if pedt<>nil then pedt^.EdIdx:=idx;
-																			ob_edchar:=0
-																		end;
-										Shift_CR,$7400: begin
-																			idx:=getmaxidx;
-																			if pedt<>nil then pedt^.EdIdx:=idx;
-																			ob_edchar:=0
-																		end;
+										Shift_CL,$7300:
+											if not(bTst(ob_kstat,K_CTRL) and ((ob_kstat and K_SHIFT)>0)) then
+												begin
+													scrollto0;
+													eprint(false);
+													ob_edchar:=0
+												end;
+										Shift_CR,$7400:
+											if not(bTst(ob_kstat,K_CTRL) and ((ob_kstat and K_SHIFT)>0)) then
+												begin
+													scrolltoend;
+													eprint(false);
+													ob_edchar:=0
+												end;
 										S_Undo: begin
 															if pedt<>nil then
 																if pedt^.CanUndo then
@@ -12694,12 +15223,12 @@ function TDialog.objc_edit(var ob_edchar: integer; ob_edkind: integer; clp: ARRA
 										thechar:=chr(lo(ob_edchar));
 										if thechar>=' ' then
 											begin
-												vlen:=StrLen(pted^.te_pvalid);
+												vlen:=StrLen(getpvalid);
 												if vlen=0 then vchar:='X'
 												else
-													if typ+1>vlen then vchar:=PChar(longint(pted^.te_pvalid)+vlen-1)^
+													if typ+1>vlen then vchar:=PChar(longint(getpvalid)+vlen-1)^
 													else
-														vchar:=PChar(longint(pted^.te_pvalid)+typ)^;
+														vchar:=PChar(longint(getpvalid)+typ)^;
 												if ValidChar(vchar) then
 													begin
 														if typ<=(pted^.te_txtlen-3) then
@@ -12707,6 +15236,7 @@ function TDialog.objc_edit(var ob_edchar: integer; ob_edkind: integer; clp: ARRA
 																PChar(longint(pted^.te_ptext)+q+1)^:=PChar(longint(pted^.te_ptext)+q)^;
 														PChar(longint(pted^.te_ptext)+typ)^:=thechar;
 														idx:=typ+1;
+														checkscroll;
 														if pedt<>nil then pedt^.EdIdx:=idx;
 														eprint(true)
 													end
@@ -12716,22 +15246,21 @@ function TDialog.objc_edit(var ob_edchar: integer; ob_edkind: integer; clp: ARRA
 														typ:=0;
 														while typ<idx do
 															begin
-																if PChar(longint(pted^.te_ptmplt)+q)^='_' then inc(typ);
+																if PChar(longint(getptmplt)+q)^='_' then inc(typ);
 																inc(q)
 															end;
-														while (PChar(longint(pted^.te_ptmplt)+q)^<>thechar) and (PChar(longint(pted^.te_ptmplt)+q)^<>#0) do
+														while (PChar(longint(getptmplt)+q)^<>thechar) and (PChar(longint(getptmplt)+q)^<>#0) do
 															begin
-																if PChar(longint(pted^.te_ptmplt)+q)^='_' then inc(typ);
+																if PChar(longint(getptmplt)+q)^='_' then inc(typ);
 																inc(q)
 															end;
-														if PChar(longint(pted^.te_ptmplt)+q)^=thechar then
+														if PChar(longint(getptmplt)+q)^=thechar then
 															begin
 																if typ>idx then
 																	for q:=idx to typ-1 do
 																		PChar(longint(pted^.te_ptext)+q)^:=' ';
 																PChar(longint(pted^.te_ptext)+typ)^:=#0;
-																idx:=getmaxidx;
-																if pedt<>nil then pedt^.EdIdx:=idx;
+																scrolltoend;
 																eprint(true)
 															end
 													end
@@ -12742,27 +15271,32 @@ function TDialog.objc_edit(var ob_edchar: integer; ob_edkind: integer; clp: ARRA
 								end;
 				EDEND:  begin
 									if pedt<>nil then pedt^.EdIdx:=idx;
-									cursor
+									cursor;
+									obedinit:=false
 								end;
 				EDDRAW: cursor;
-				EDIDX:  begin
-									typ:=(ob_edchar-ox) div chw;
-									goto _edidx
-								end;
+				EDIDXPOS:
+					begin
+						typ:=(ob_edchar-ox) div chw;
+						if pted^.te_ptmplt=nil then inc(typ,PXTED(pted^.te_pvalid)^.xte_scroll);
+						goto _edidx
+					end;
 				EDIDXABS: begin
 										typ:=ob_edchar;
 										_edidx:
 										if typ<0 then typ:=0;
-										for q:=0 to typ do if PChar(longint(pted^.te_ptmplt)+toffs+q)^<>'_' then dec(typ);
+										for q:=0 to typ do if PChar(longint(getptmplt)+toffs+q)^<>'_' then dec(typ);
 										if typ>getmaxidx then typ:=getmaxidx;
 										if typ<>idx then
 											begin
 												cursor;
 												idx:=typ;
+												checkscroll;
 												if pedt<>nil then pedt^.EdIdx:=idx;
+												eprint(false);
 												cursor
 											end
-									end
+									end;
 				else
 					objc_edit:=0
 				end;
@@ -12794,8 +15328,7 @@ constructor TToolbar.Init(AParent: PWindow; ATree,AnIndx,Stat,Key: integer; Msg:
 		IsSwitch:=Switch;
 		ObjTree:=ATree;
 		ObjIndx:=AnIndx;
-		ObjAddr:=@tp^[ObjIndx];
-		if ObjAddr=nil then
+		if not(IsToolbarInstalled) then
 			begin
 				inherited Done;
 				fail
@@ -12803,12 +15336,23 @@ constructor TToolbar.Init(AParent: PWindow; ATree,AnIndx,Stat,Key: integer; Msg:
 		with ObjAddr^ do
 			begin
 				ob_flags:=ob_flags or SELECTABLE;
-				if (ob_type and $ff) in [G_BOX,G_BOXTEXT,G_BUTTON,G_BOXCHAR,G_FBOXTEXT] then
+				case (ob_type and $00ff) of
+				G_BOX,
+				G_BOXTEXT,
+				G_BUTTON,
+				G_BOXCHAR,
+				G_FBOXTEXT:
 					begin
 						if IsSwitch then ob_flags:=(ob_flags and not(FL3DMASK)) or FL3DIND
 						else
 							ob_flags:=(ob_flags and not(FL3DMASK)) or FL3DACT
 					end;
+				G_ICON,
+				G_CICON:
+					begin
+						{ Zeichen verstecken }
+					end
+				end;
 				if (GEMVersion>=$0340) and (GEMVersion<>MAGIX) then
 					begin
 						if (ob_type and $ff) in [G_BOXTEXT,G_FBOXTEXT] then ob_state:=ob_state and not(SHADOWED or OUTLINED)
@@ -12852,6 +15396,30 @@ destructor TToolbar.Done;
 	end;
 
 
+function TToolbar.IsToolbarInstalled: boolean;
+	var tp : PTree;
+	    i,q: integer;
+
+	begin
+		ObjAddr:=nil;
+		i:=-1;
+		for q:=0 to MAXTOOLBARS do
+			if PWindow(Parent)^.tbval[q].Indx=ObjTree then
+				begin
+					i:=q;
+					break
+				end;
+		if i<0 then
+			begin
+				tp:=Application^.GetAddr(ObjTree);
+				if tp<>nil then ObjAddr:=@tp^[ObjIndx]
+			end
+		else
+			ObjAddr:=@PWindow(Parent)^.tbval[i].Tree^[ObjIndx];
+		IsToolbarInstalled:=(ObjAddr<>nil)
+	end;
+
+
 function TToolbar.TestKey(Stat,Key: integer): boolean;
 
 	begin
@@ -12869,12 +15437,13 @@ function TToolbar.TestKey(Stat,Key: integer): boolean;
 						if VGHnd then VPipe^[3]:=PWindow(Parent)^.Attr.gemHandle;
 						appl_write(Application^.apID,16,VPipe)
 					end;
-				if hi(ObjAddr^.ob_type)>ROOT then
-					begin
-						if bTst(PWindow(Parent)^.Class.Style,cs_WindowMenuToolbar) then PWindow(Parent)^.MNSelected(hi(ObjAddr^.ob_type),0,nil,0)
-						else
-							Application^.MNSelected(hi(ObjAddr^.ob_type),0,nil,0)
-					end;
+				if IsToolbarInstalled then
+					if hi(ObjAddr^.ob_type)>ROOT then
+						begin
+							if bTst(PWindow(Parent)^.Class.Style,cs_WindowMenuToolbar) then PWindow(Parent)^.MNSelected(hi(ObjAddr^.ob_type),0,nil,0)
+							else
+								Application^.MNSelected(hi(ObjAddr^.ob_type),0,nil,0)
+						end;
 				if not(IsSwitch) then Uncheck
 			end
 		else
@@ -12896,9 +15465,11 @@ function TToolbar.TestMessage(Pipe: Pipearray): boolean;
 function TToolbar.GetState: integer;
 
 	begin
-		if bTst(ObjAddr^.ob_state,DISABLED) then GetState:=bf_Disabled
+		if not(IsToolbarInstalled) then GetState:=id_No
 		else
-			GetState:=bf_Enabled
+			if bTst(ObjAddr^.ob_state,DISABLED) then GetState:=bf_Disabled
+			else
+				GetState:=bf_Enabled
 	end;
 
 
@@ -12906,14 +15477,15 @@ procedure TToolbar.SetState(StateFlag: integer);
 
 	begin
 		if GetState<>StateFlag then
-			begin
-				with ObjAddr^ do
-					if StateFlag=bf_Disabled then
-						ob_state:=ob_state or DISABLED
-					else
-						ob_state:=ob_state and not(DISABLED);
-				Paint
-			end
+			if IsToolbarInstalled then
+				begin
+					with ObjAddr^ do
+						if StateFlag=bf_Disabled then
+							ob_state:=ob_state or DISABLED
+						else
+							ob_state:=ob_state and not(DISABLED);
+					Paint
+				end
 	end;
 
 
@@ -12935,21 +15507,23 @@ procedure TToolbar.SetCheck(CheckFlag: integer);
 
 	begin
 		if GetCheck<>CheckFlag then
-			begin
-				with ObjAddr^ do
-					if CheckFlag=bf_Unchecked then ob_state:=ob_state and not(SELECTED)
-					else
-						ob_state:=ob_state or SELECTED;
-				Paint
-			end
+			if IsToolbarInstalled then
+				begin
+					with ObjAddr^ do
+						if CheckFlag=bf_Unchecked then ob_state:=ob_state and not(SELECTED)
+						else
+							ob_state:=ob_state or SELECTED;
+					Paint
+				end
 	end;
 
 
 function TToolbar.GetCheck: integer;
 
 	begin
-		with ObjAddr^ do
-			if bTst(ob_state,SELECTED) then GetCheck:=bf_Checked
+		if not(IsToolbarInstalled) then GetCheck:=id_No
+		else
+			if bTst(ObjAddr^.ob_state,SELECTED) then GetCheck:=bf_Checked
 			else
 				GetCheck:=bf_Unchecked
 	end;
@@ -12974,12 +15548,19 @@ procedure TToolbar.Toggle;
 	begin
 		if GetCheck=bf_Unchecked then SetCheck(bf_Checked)
 		else
-			SetCheck(bf_Unchecked)
+			SetCheck(bf_Unchecked);
+	end;
+
+
+function TToolbar.IsChecked: boolean;
+
+	begin
+		IsChecked:=(GetCheck=bf_Checked);
 	end;
 
 
 procedure TToolbar.Paint;
-	var box: GRECT;
+	var box,obox: GRECT;
 
 	begin
 		with PWindow(Parent)^ do
@@ -12988,12 +15569,16 @@ procedure TToolbar.Paint;
 				if IsIconified then exit;
 				if (Class.ToolbarTree=nil) or (tbtree<>ObjTree) then exit;
 				wind_update(BEG_UPDATE);
+				objc_offset(Class.ToolbarTree,ObjIndx,obox.X,obox.Y);
+				obox.W:=ObjAddr^.ob_width;
+				obox.H:=ObjAddr^.ob_height;
 				HideMouse;
 				wind_get(Attr.gemHandle,WF_FIRSTXYWH,box.X,box.Y,box.W,box.H);
 				while (box.W>0) and (box.H>0) do
 					begin
 						if rc_intersect(SysInfo.Desktop,box) then
-							with box do objc_draw(Class.ToolbarTree,ObjIndx,MAX_DEPTH,X,Y,W,H);
+							if rc_intersect(obox,box) then
+								with box do objc_draw(Class.ToolbarTree,ROOT,MAX_DEPTH,X,Y,W,H);
 						wind_get(Attr.gemHandle,WF_NEXTXYWH,box.X,box.Y,box.W,box.H)
 					end;
 				ShowMouse;
@@ -13029,14 +15614,17 @@ procedure TToolbar.SetHelp(Hlp: string);
 procedure TToolbar.SetMenuIndex(Indx: byte);
 
 	begin
-		with ObjAddr^ do ob_type:=(ob_type and $00ff) or (Indx shl 8)
+		if IsToolbarInstalled then
+			with ObjAddr^ do ob_type:=(ob_type and $00ff) or (Indx shl 8)
 	end;
 
 
 function TToolbar.GetMenuIndex: byte;
 
 	begin
-		GetMenuIndex:=hi(ObjAddr^.ob_type)
+		if IsToolbarInstalled then GetMenuIndex:=hi(ObjAddr^.ob_type)
+		else
+			GetMenuIndex:=0
 	end;
 
 
@@ -13313,6 +15901,107 @@ function TKeyMenu.GetMenuTree: PTree;
 
 
 
+{ *** Objekt TSUBMENU *** }
+
+constructor TSubMenu.Init(AParent: PEventObject; mNum,popTree,popIndex: integer);
+	var mnu: MENU;
+	    p  : PTree;
+	    i  : integer;
+
+	begin
+		if not(inherited Init(AParent,K_NORMAL,id_No,mNum,-1)) then fail;
+		p:=GetMenuTree;
+		if p=nil then
+			begin
+				inherited Done;
+				fail
+			end;
+		new(Popup,Init(AParent,popTree,popIndex,id_No));
+		if Popup=nil then
+			begin
+				inherited Done;
+				fail
+			end;
+		if Application^.stewart<>0 then
+			if STEW_COOKPtr(Application^.stewart)^.menu_on<>0 then
+				if (Application^.Attr.Colors>=STEW_COOKPtr(Application^.stewart)^.bck_col) and IsApp then
+					begin
+						Popup^.PopTree^[Popup^.pIndex].ob_spec.index:=(Popup^.PopTree^[Popup^.pIndex].ob_spec.index and $ffffff00) or STEW_COOKPtr(Application^.stewart)^.bck_col or $70;
+						i:=Popup^.PopTree^[Popup^.pIndex].ob_head;
+						if i>0 then
+							while i<>Popup^.pIndex do
+								begin
+									Popup^.PopTree^[i].ob_flags:=Popup^.PopTree^[i].ob_flags or FL3DBAK;
+									i:=Popup^.PopTree^[i].ob_next
+								end
+					end;
+		Style:=Style or es_SubMenu;
+		if (agi.MnAttach) and IsApp then
+			begin
+				if not(agi.SysNiceline) or Application^.extmagxmenu then
+					with Popup^ do
+						begin
+							mnusr.ub_parm:=0;
+							mnusr.ub_code:=@DrawMenuRect;
+							for i:=PopTree^[pStart].ob_head to PopTree^[pStart].ob_tail do
+								if bTst(PopTree^[i].ob_state,DISABLED) then
+									if StrPLeft(GetText(i-PopTree^[pStart].ob_head),1)='-' then
+										begin
+											PopTree^[i].ob_type:=G_USERDEF;
+											PopTree^[i].ob_spec.user_blk:=@mnusr;
+										end;
+						end;
+				with mnu do
+					begin
+						mn_tree:=Popup^.PopTree;
+						mn_menu:=Popup^.pIndex;
+						mn_item:=Popup^.pStart;
+						mn_scroll:=0;
+						mn_keystate:=K_NORMAL;
+					end;
+				menu_attach(MEA_ATTACH,p,VMNum,@mnu);
+			end
+		else
+			with p^[VMNum] do
+				if (ob_type and $00ff)=G_STRING then
+					PChar(longint(ob_spec.free_string)+StrLen(ob_spec.free_string)-2)^:=#3;
+	end;
+
+
+destructor TSubMenu.Done;
+
+	begin
+		if (agi.MnAttach) and IsApp then
+			if (GEMVersion=MAGIX) or (GEMVersion>=$0410) then
+				if GetMenuTree<>nil then menu_attach(MEA_REMOVE,GetMenuTree,VMNum,nil);
+		if Popup<>nil then dispose(Popup,Done);
+		inherited Done;
+	end;
+
+
+procedure TSubMenu.Work;
+	var ret: integer;
+
+	begin
+		if not(agi.MnAttach) or not(IsApp) then
+			begin
+				graf_mkstate(Popup^.pX,Popup^.pY,ret,ret);
+				Popup^.pFlag:=POP_CENTER;
+				ret:=Popup^.Execute;
+				if ret>=0 then HandleMenu(ret);
+			end
+	end;
+
+
+procedure TSubMenu.HandleMenu(Indx: integer);
+
+	begin
+	end;
+
+{ *** TSUBMENU *** }
+
+
+
 { *** Objekt TKEY *** }
 
 constructor TKey.Init(AParent: PEventObject; Stat,Key: integer; Msg: pointer; GetHnd: boolean);
@@ -13374,14 +16063,20 @@ function TMenu.TestKey(Stat,Key: integer): boolean;
 
 
 function TDKey.TestKey(Stat,Key: integer): boolean;
-	var nx,dummy,tx,robj,mx,my: integer;
-	    valid,found           : boolean;
-	    kpc,pcte              : PControl;
+	label _weiter;
 
-	procedure invrt(tid: integer);
+	var nx,dummy,
+	    tx,robj,
+	    mx,my,oldkey: integer;
+	    valid,found : boolean;
+	    kpc         : PControl;
+	    pd          : PDialog;
+
+	function invrt(tid: integer): boolean;
 		var p: PControl;
 
 		begin
+			invrt:=true;
 			with PDialog(Parent)^ do
 				begin
 					kpc:=nil;
@@ -13394,26 +16089,34 @@ function TDKey.TestKey(Stat,Key: integer): boolean;
 							end;
 					if kpc<>nil then
 						begin
-							if bTst(DlgTree^[kpc^.ObjIndx].ob_flags,SELECTABLE) then
+							if kpc^.GetState=bf_Disabled then
 								begin
-									DlgTree^[kpc^.ObjIndx].ob_state:=DlgTree^[kpc^.ObjIndx].ob_state or SELECTED;
-									ObjcPaint(kpc^.ObjIndx,false)
+									invrt:=false;
+									kpc:=nil
 								end
 							else
-								kpc:=nil
+								if bTst(DlgTree^[kpc^.ObjIndx].ob_flags,SELECTABLE) then
+									begin
+										DlgTree^[kpc^.ObjIndx].ob_state:=DlgTree^[kpc^.ObjIndx].ob_state or SELECTED;
+										ObjcPaint(kpc^.ObjIndx,false)
+									end
+								else
+									kpc:=nil
 						end
 				end
 		end;
 
 	begin
 		TestKey:=false;
-		with PDialog(Parent)^ do
+		pd:=PDialog(Parent);
+		with pd^ do
 			if Cont then
 				begin
 					dummy:=integer(MapKey(Key));
 					if bTst(hi(dummy),KsALT) then
 						begin
 							Cont:=true;
+							oldkey:=Key;
 							Key:=0;
 							next_obj:=0;
 							nx:=0;
@@ -13421,15 +16124,16 @@ function TDKey.TestKey(Stat,Key: integer): boolean;
 							kpc:=CtrlList;
 							while (kpc<>nil) and Cont do
 								begin
-									if kpc^.TestShortCut(dummy) then
-										begin
-											TestKey:=true;
-											if kpc^.GetState<>bf_Disabled then
-												begin
-													Cont:=false;
-													nx:=kpc^.ObjIndx
-												end
-										end;
+									if not(kpc^.IsHidden) then
+										if kpc^.TestShortCut(dummy) then
+											begin
+												TestKey:=true;
+												if kpc^.GetState<>bf_Disabled then
+													begin
+														Cont:=false;
+														nx:=kpc^.ObjIndx
+													end
+											end;
 									kpc:=kpc^.Nxt
 								end;
 							if not(Cont) then
@@ -13448,11 +16152,12 @@ function TDKey.TestKey(Stat,Key: integer): boolean;
 																	robj:=DlgTree^[tx].ob_head
 																else
 																	robj:=tx;
-																if bTst(DlgTree^[robj].ob_state,SELECTED) then
-																	begin
-																		objc_change(DlgTree,robj,0,0,0,1,1,DlgTree^[robj].ob_state and not(SELECTED),1);
-																		ObjcPaint(robj,false)
-																	end;
+																if bTst(DlgTree^[robj].ob_flags,RBUTTON) then
+																	if bTst(DlgTree^[robj].ob_state,SELECTED) then
+																		begin
+																			objc_change(DlgTree,robj,0,0,0,1,1,DlgTree^[robj].ob_state and not(SELECTED),1);
+																			ObjcPaint(robj,false)
+																		end;
 															until robj=nx;
 															objc_change(DlgTree,nx,0,0,0,1,1,dummy or SELECTED,1);
 															ObjcPaint(nx,false);
@@ -13475,9 +16180,29 @@ function TDKey.TestKey(Stat,Key: integer): boolean;
 										EndDlg(nx,false);
 									exit
 								end
+							else
+								begin
+									Key:=oldkey;
+									if pxfocus<>nil then
+										if pxfocus^.ExtFocusKey(Stat,Key) then
+											begin
+												Cont:=true;
+												TestKey:=true;
+												goto _weiter
+											end
+								end
 						end
 					else
-						Cont:=(Application^.form_keybd(DlgTree,edit_obj,0,Key,next_obj,Key)<>0);
+						begin
+							if pxfocus<>nil then
+								if pxfocus^.ExtFocusKey(Stat,Key) then
+									begin
+										Cont:=true;
+										TestKey:=true;
+										goto _weiter
+									end;
+							Cont:=(Application^.form_keybd(pd,DlgTree,edit_obj,0,Key,Stat,next_obj,Key)<>0)
+						end;
 					if not(Cont) then
 						begin
 							TestKey:=true;
@@ -13494,56 +16219,85 @@ function TDKey.TestKey(Stat,Key: integer): boolean;
 						end;
 					if Key<>0 then
 						begin
+							case Key of
+							F1:
+								dummy:=1;
+							F2:
+								dummy:=2;
+							F3:
+								dummy:=3;
+							F4:
+								dummy:=4;
+							F5:
+								dummy:=5;
+							F6:
+								dummy:=6;
+							F7:
+								dummy:=7;
+							F8:
+								dummy:=8;
+							F9:
+								dummy:=9;
+							F10:
+								dummy:=10;
+							else
+								dummy:=0;
+							end;
+							if dummy>0 then
+								begin
+									dummy:=TestFKey(dummy);
+									if dummy>ROOT then
+										begin
+											Result:=dummy;
+											Cont:=false;
+											Destroy;
+											exit
+										end
+								end;
 							found:=false;
 							valid:=false;
 							case Key of
-							S_Help: begin
-												TestKey:=true;
+							S_Help,F1:
+								if Stat=K_NORMAL then
+									begin
+										TestKey:=true;
+										if Key=F1 then
+											begin
 												graf_mkstate(mx,my,dummy,dummy);
-												tx:=objc_find(DlgTree,ROOT,MAX_DEPTH,mx,my);
-												if tx>-1 then
+												if IsHelpAvailable(mx,my) then
 													begin
-														pcte:=CtrlList;
-														while (pcte<>nil) do
-															with pcte^ do
-																begin
-																	if TestIndex(tx) then
-																		if IsHelpAvailable then
-																			begin
-																				Application^.BubbleHelp(mx,my,bbldelay,GetHelp);
-																				valid:=true
-																			end;
-																	pcte:=Nxt
-																end
-													end;
-												if not(valid) then
-													begin
-													  invrt(id_Help);
-														valid:=Help;
-														found:=true
+														Application^.BubbleHelp(mx,my,GetHelp(mx,my),false,false);
+														valid:=true
 													end
+											end;
+										if not(valid) then
+											begin
+											  if invrt(id_Help) then valid:=Help;
+												found:=true
 											end
+									end;
 							else
 								if edit_obj>0 then
 									begin
-										objc_edit(Key,EDCHAR,Work.A2,true);
+										objc_edit(Key,EDCHAR,Stat,Work.A2,true);
 										TestKey:=(Key=0)
 									end
 								else
-									case Key of
-									S_Esc: begin
-													 TestKey:=true;
-													 invrt(id_Esc);
-													 valid:=Esc;
-													 found:=true
-												 end;
-									S_Undo: begin
-														TestKey:=true;
-														invrt(id_Undo);
-										 				valid:=Undo;
-										 				found:=true
-													end
-									end
+									if Stat=K_NORMAL then
+										case Key of
+										S_Esc:
+											begin
+												TestKey:=true;
+												if invrt(id_Esc) then valid:=Esc;
+												found:=true
+											end;
+										S_Undo:
+											begin
+												TestKey:=true;
+												if invrt(id_Undo) then valid:=Undo;
+											 	found:=true
+											end
+										end
 							end;
 							if found then
 								begin
@@ -13573,15 +16327,25 @@ function TDKey.TestKey(Stat,Key: integer): boolean;
 											end
 								end
 						end;
+					_weiter:
 					if (next_obj>0) and (edit_obj<>next_obj) then
 						begin
-							objc_edit(dummy,EDEND,Work.A2,true);
+							objc_edit(dummy,EDEND,K_NORMAL,Work.A2,true);
 							edit_obj:=next_obj;
 							next_obj:=0;
 							CallChanged(edit_obj,false,true,false);
-							objc_edit(dummy,EDINIT,Work.A2,true)
+							objc_edit(dummy,EDINIT,K_NORMAL,Work.A2,true)
 						end
 				end
+	end;
+
+
+function TAlrtDialog.TestFKey(fNum: integer): integer;
+
+	begin
+		if Between(fNum,1,cntbutton) then TestFKey:=firstbutton+fNum-1
+		else
+			TestFKey:=id_No
 	end;
 
 
@@ -13592,7 +16356,7 @@ procedure TQKey.Work;
 	end;
 
 
-function TMenuPopup.ExitPop(mX,mY: integer): integer;
+function TMenuPopup.ExitPop(Indx,mX,mY: integer): integer;
 	label _weiter;
 
 	var objc,pdx,rh,rx,ry: integer;
@@ -13705,16 +16469,11 @@ function TMenuPopup.KeyExit(Stat,Key: integer): integer;
 constructor TIcnWnd.Init(AParent: PWindow; ATitle: string; x,y,w,h: integer);
 
 	begin
-		if not(inherited Init(AParent,ATitle)) then fail;
 		icx:=x;
 		icy:=y;
 		icw:=w;
 		ich:=h;
-		Create;
-		if Attr.Status in [ws_Created,ws_Open] then wind_set(Attr.gemHandle,WF_ICONIFY,icx,icy,icw,ich);
-		GetCurr;
-		GetWork;
-		OpenWindow
+		if not(inherited Init(AParent,ATitle)) then fail
 	end;
 
 
@@ -13728,12 +16487,10 @@ procedure TIcnWnd.SetupWindow;
 
 
 procedure TIcnWnd.MakeWindow;
-	var valid: boolean;
 
 	begin
-		valid:=(Attr.Status=ws_NoWindow);
 		Create;
-		if valid and (Attr.Status=ws_Created) then wind_set(Attr.gemHandle,WF_ICONIFY,icx,icy,icw,ich);
+		wind_set(Attr.gemHandle,WF_ICONIFY,icx,icy,icw,ich);
 		GetCurr;
 		GetWork;
 		OpenWindow
@@ -13805,57 +16562,184 @@ procedure SendXaccExit(p: PXAccAttr);
 	end;
 
 
+procedure vgText(vdiHandle,x,y: integer; const outstring: string);
+	var l,i: integer;
+
+	begin
+		l:=length(outstring);
+		if l<=0 then exit;
+		with VDI_pb do
+			begin
+				control^[0]:=8;
+				control^[1]:=1;
+				control^[3]:=l;
+				control^[6]:=vdiHandle;
+				ptsin^[0]:=x;
+				ptsin^[1]:=y;
+				for i:=1 to l do intin^[i-1]:=ord(outstring[i]);
+				vdi(@VDI_pb)
+			end
+	end;
+
+
+procedure vPline(vdiHandle,Count: integer; const pxyarray: array of integer);
+	var i: integer;
+
+	begin
+		if Count<2 then exit;
+		with VDI_pb do
+			begin
+				control^[0]:=6;
+				control^[1]:=Count;
+				control^[3]:=0;
+				control^[6]:=vdiHandle;
+				for i:=0 to (Count shl 1)-1 do ptsin^[i]:=pxyarray[i];
+				vdi(@VDI_pb)
+			end
+	end;
+
+
+function vst_fg_color(handle,color_space: integer; const fg_color: TCOLOR_ENTRY): integer;
+
+	begin
+		with VDI_pb do
+			begin
+				control^[0]:=200;
+				control^[1]:=0;
+				control^[3]:=6;
+				control^[5]:=0;
+				control^[6]:=handle;
+				intin^[0]:=0;
+				intin^[1]:=color_space;
+				intin^[2]:=fg_color.rgb.reserved;
+				intin^[3]:=fg_color.rgb.red;
+				intin^[4]:=fg_color.rgb.green;
+				intin^[5]:=fg_color.rgb.blue;
+				vdi(@VDI_pb);
+				vst_fg_color:=intout^[0]
+			end
+	end;
+
+
+function vst_bg_color(handle,color_space: integer; const bg_color: TCOLOR_ENTRY): integer;
+
+	begin
+		with VDI_pb do
+			begin
+				control^[0]:=201;
+				control^[1]:=0;
+				control^[3]:=6;
+				control^[5]:=0;
+				control^[6]:=handle;
+				intin^[0]:=0;
+				intin^[1]:=color_space;
+				intin^[2]:=bg_color.rgb.reserved;
+				intin^[3]:=bg_color.rgb.red;
+				intin^[4]:=bg_color.rgb.green;
+				intin^[5]:=bg_color.rgb.blue;
+				vdi(@VDI_pb);
+				vst_bg_color:=intout^[0]
+			end
+	end;
+
+
 function DrawMenuRect(dummy1,dummy2: pointer; parm: PARMBLKPtr): word;
-	var pxy: ARRAY_4;
+	label _weiter,_raus;
 
 	begin
 		with parm^ do
 			begin
-				pxy[0]:=pb_x;
-				pxy[1]:=pb_y+(pb_h shr 1)-1;
-				pxy[2]:=pb_x+pb_w-1;
-				pxy[3]:=pb_y+(pb_h shr 1)
+				d_pxy[0]:=pb_x;
+				d_pxy[1]:=pb_y+(pb_h shr 1)-1;
+				d_pxy[2]:=pb_x+pb_w-1;
+				d_pxy[3]:=pb_y+(pb_h shr 1)
 			end;
 		with Application^ do
 			begin
-				if Attr.Colors>=LWhite then
+				if extmagxmenu then
 					begin
-						vsf_interior(vdiHandle,FIS_SOLID);
-						vsf_color(vdiHandle,LWhite)
+						d_pxy[1]:=d_pxy[3];
+						vsl_color(vdiHandle,LBlack);
+						v_pline(vdiHandle,2,d_pxy);
+						vsl_color(vdiHandle,Black);
+						goto _raus
 					end
 				else
-					vsf_interior(vdiHandle,FIS_PATTERN);
-				vr_recfl(vdiHandle,pxy);
+					if ExtObjects then
+						begin
+							vsf_interior(vdiHandle,FIS_PATTERN);
+							vsf_style(vdiHandle,4);
+							vswr_mode(vdiHandle,MD_TRANS)
+						end
+					else
+						begin
+							if stewart<>0 then
+								if STEW_COOKPtr(stewart)^.menu_on<>0 then
+									if Attr.Colors>=STEW_COOKPtr(stewart)^.dis_col then
+										begin
+											vsf_interior(vdiHandle,FIS_SOLID);
+											vsf_color(vdiHandle,STEW_COOKPtr(stewart)^.dis_col);
+											goto _weiter
+										end;
+							if Attr.Colors>=LWhite then
+								begin
+									vsf_interior(vdiHandle,FIS_SOLID);
+									vsf_color(vdiHandle,LWhite)
+								end
+							else
+								vsf_interior(vdiHandle,FIS_PATTERN)
+						end;
+				_weiter:
+				vr_recfl(vdiHandle,d_pxy);
 				vsf_interior(vdiHandle,FIS_HOLLOW);
-				vsf_color(vdiHandle,Black)
+				vsf_color(vdiHandle,Black);
+				vswr_mode(vdiHandle,MD_REPLACE)
 			end;
+		_raus:
 		DrawMenuRect:=NORMAL
 	end;
 
 
 function DrawTitle(dummy1,dummy2: pointer; parm: PARMBLKPtr): word;
-	var clip: ARRAY_4;
 
 	begin
 		with parm^ do
 			begin
-				clip[0]:=pb_xc;
-				clip[1]:=pb_yc;
-				clip[2]:=pb_xc+pb_wc-1;
-				clip[3]:=pb_yc+pb_hc-1
+				d_clip[0]:=pb_xc;
+				d_clip[1]:=pb_yc;
+				d_clip[2]:=pb_xc+pb_wc-1;
+				d_clip[3]:=pb_yc+pb_hc-1
 			end;
 		with Application^ do
 			begin
-				vs_clip(vdiHandle,CLIP_ON,clip);
+				vs_clip(vdiHandle,CLIP_ON,d_clip);
 				vst_effects(vdiHandle,TF_UNDERLINED);
-				vswr_mode(vdiHandle,MD_ERASE);
-				vst_color(vdiHandle,SysInfo.BGDefCol);
-				v_gtext(vdiHandle,parm^.pb_x,parm^.pb_y+SysInfo.SFHeight,StrPas(PChar(parm^.pb_parm)));
-				vswr_mode(vdiHandle,MD_TRANS);
-				vst_color(vdiHandle,Black);
-				v_gtext(vdiHandle,parm^.pb_x,parm^.pb_y+SysInfo.SFHeight,StrPas(PChar(parm^.pb_parm)));
+				d_str[0]:=#0;
+				d_chr:=PChar(parm^.pb_parm);
+				while d_chr^<>#0 do
+					begin
+						inc(byte(d_str[0]));
+						d_str[byte(d_str[0])]:=d_chr^;
+						inc(longint(d_chr))
+					end;
+				if SysInfo.DefColValid then
+					begin
+						vst_fg_color(vdiHandle,CSPACE_RGB,defcolfg);
+						vst_bg_color(vdiHandle,CSPACE_RGB,SysInfo.DefCol);
+						vgText(vdiHandle,parm^.pb_x,parm^.pb_y+SysInfo.Font.Height,d_str);
+						vst_color(vdiHandle,Black)
+					end
+				else
+					begin
+						vswr_mode(vdiHandle,MD_ERASE);
+						vst_color(vdiHandle,SysInfo.BGDefCol);
+						vgText(vdiHandle,parm^.pb_x,parm^.pb_y+SysInfo.Font.Height,d_str);
+						vswr_mode(vdiHandle,MD_TRANS);
+						vst_color(vdiHandle,Black);
+						vgText(vdiHandle,parm^.pb_x,parm^.pb_y+SysInfo.Font.Height,d_str);
+						vswr_mode(vdiHandle,MD_REPLACE)
+					end;
 				vst_effects(vdiHandle,TF_NORMAL);
-				vswr_mode(vdiHandle,MD_REPLACE);
 				vs_clip(vdiHandle,CLIP_ON,SysInfo.Desktop.A2)
 			end;
 		DrawTitle:=NORMAL
@@ -13863,27 +16747,45 @@ function DrawTitle(dummy1,dummy2: pointer; parm: PARMBLKPtr): word;
 
 
 function DrawStatic(dummy1,dummy2: pointer; parm: PARMBLKPtr): word;
-	var clip: ARRAY_4;
 
 	begin
 		with parm^ do
 			begin
-				clip[0]:=pb_xc;
-				clip[1]:=pb_yc;
-				clip[2]:=pb_xc+pb_wc-1;
-				clip[3]:=pb_yc+pb_hc-1
+				d_clip[0]:=pb_xc;
+				d_clip[1]:=pb_yc;
+				d_clip[2]:=pb_xc+pb_wc-1;
+				d_clip[3]:=pb_yc+pb_hc-1
 			end;
 		with Application^ do
 			begin
-				vs_clip(vdiHandle,CLIP_ON,clip);
+				vs_clip(vdiHandle,CLIP_ON,d_clip);
 				if bTst(parm^.pr_currstate,DISABLED) then vst_effects(vdiHandle,TF_LIGHTENED);
-				vswr_mode(vdiHandle,MD_ERASE);
-				vst_color(vdiHandle,SysInfo.BGDefCol);
-				v_gtext(vdiHandle,parm^.pb_x,parm^.pb_y+SysInfo.SFHeight,StrPas(PChar(parm^.pb_parm)));
-				vswr_mode(vdiHandle,MD_TRANS);
-				vst_color(vdiHandle,Black);
-				v_gtext(vdiHandle,parm^.pb_x,parm^.pb_y+SysInfo.SFHeight,StrPas(PChar(parm^.pb_parm)));
-				vswr_mode(vdiHandle,MD_REPLACE);
+				d_str[0]:=#0;
+				d_chr:=PChar(parm^.pb_parm);
+				while d_chr^<>#0 do
+					begin
+						inc(byte(d_str[0]));
+						d_str[byte(d_str[0])]:=d_chr^;
+						inc(longint(d_chr))
+					end;
+				if SysInfo.DefColValid then
+					begin
+						vst_fg_color(vdiHandle,CSPACE_RGB,defcolfg);
+						vst_bg_color(vdiHandle,CSPACE_RGB,SysInfo.DefCol);
+						vgText(vdiHandle,parm^.pb_x,parm^.pb_y+SysInfo.Font.Height,d_str);
+						vst_color(vdiHandle,Black)
+					end
+				else
+					begin
+						vswr_mode(vdiHandle,MD_ERASE);
+						vst_color(vdiHandle,SysInfo.BGDefCol);
+						vgText(vdiHandle,parm^.pb_x,parm^.pb_y+SysInfo.Font.Height,d_str);
+						vswr_mode(vdiHandle,MD_TRANS);
+						vst_color(vdiHandle,Black);
+						vgText(vdiHandle,parm^.pb_x,parm^.pb_y+SysInfo.Font.Height,d_str);
+						vswr_mode(vdiHandle,MD_REPLACE)
+					end;
+				vsl_type(vdiHandle,LT_SOLID);
 				vst_effects(vdiHandle,TF_NORMAL);
 				vs_clip(vdiHandle,CLIP_ON,SysInfo.Desktop.A2)
 			end;
@@ -13892,156 +16794,171 @@ function DrawStatic(dummy1,dummy2: pointer; parm: PARMBLKPtr): word;
 
 
 function DrawPushButton(dummy1,dummy2: pointer; parm: PARMBLKPtr): word;
-	var clip         : ARRAY_4;
-	    q,ty,tx,scpos: integer;
-	    btn          : string[30];
+	var q: integer;
 
 	begin
 		with parm^ do
 			begin
-				clip[0]:=pb_xc;
-				clip[1]:=pb_yc;
-				clip[2]:=pb_xc+pb_wc-1;
-				clip[3]:=pb_yc+pb_hc-1;
-				vs_clip(Application^.vdiHandle,CLIP_ON,clip);
+				d_clip[0]:=pb_xc;
+				d_clip[1]:=pb_yc;
+				d_clip[2]:=pb_xc+pb_wc-1;
+				d_clip[3]:=pb_yc+pb_hc-1;
+				vs_clip(Application^.vdiHandle,CLIP_ON,d_clip);
 				inc(pb_x,5);
 				inc(pb_y,5);
 				dec(pb_w,10);
 				dec(pb_h,10);
-				clip[0]:=pb_x-1;
-				clip[1]:=pb_y-1;
-				clip[2]:=pb_x+pb_w;
-				clip[3]:=pb_y+pb_h-1
+				d_clip[0]:=pb_x-1;
+				d_clip[1]:=pb_y-1;
+				d_clip[2]:=pb_x+pb_w;
+				d_clip[3]:=pb_y+pb_h-1
 			end;
 		with Application^ do
 			begin
 				vsf_interior(vdiHandle,FIS_SOLID);
 				vsf_color(vdiHandle,bfalcol);
-				v_bar(vdiHandle,clip);
-				btn:=StrLPas(PChar(parm^.pb_parm),30);
-				scpos:=pos('&',btn);
-				if scpos>0 then
+				v_bar(vdiHandle,d_clip);
+				d_chr:=PChar(parm^.pb_parm);
+				d_btn[0]:=#0;
+				while (d_chr^<>#0) and (byte(d_btn[0])<30) do
 					begin
-						for q:=scpos to length(btn)-1 do btn[q]:=btn[q+1];
-						btn[0]:=chr(ord(btn[0])-1)
+						inc(byte(d_btn[0]));
+						d_btn[length(d_btn)]:=d_chr^;
+						inc(longint(d_chr))
 					end;
-				tx:=parm^.pb_x+((parm^.pb_w-length(btn)*Attr.charSWidth) shr 1);
-				ty:=parm^.pb_y+SysInfo.SFHeight-1;
+				d_scpos:=0;
+				if length(d_btn)>0 then
+					for q:=1 to length(d_btn) do
+						if d_btn[q]='&' then
+							begin
+								d_scpos:=q;
+								break
+							end;
+				if d_scpos>0 then
+					begin
+						for q:=d_scpos to length(d_btn)-1 do d_btn[q]:=d_btn[q+1];
+						d_btn[0]:=chr(ord(d_btn[0])-1)
+					end;
+				d_tx:=parm^.pb_x+((parm^.pb_w-length(d_btn)*Attr.charSWidth) shr 1);
+				d_ty:=parm^.pb_y+SysInfo.Font.Height-1;
 				if bTst(parm^.pr_currstate,SELECTED) then
 					begin
-						pxya[0]:=clip[0]-1;
-						pxya[1]:=clip[3];
+						pxya[0]:=d_clip[0]-1;
+						pxya[1]:=d_clip[3];
 						pxya[2]:=pxya[0];
-						pxya[3]:=clip[1]-1;
-						pxya[4]:=clip[2];
+						pxya[3]:=d_clip[1]-1;
+						pxya[4]:=d_clip[2];
 						pxya[5]:=pxya[3];
 						vsl_color(vdiHandle,LBlack);
-						v_pline(vdiHandle,3,pxya);
-						pxya[0]:=clip[0];
-						pxya[1]:=clip[3]+1;
-						pxya[2]:=clip[2]+1;
+						vPline(vdiHandle,3,pxya);
+						pxya[0]:=d_clip[0];
+						pxya[1]:=d_clip[3]+1;
+						pxya[2]:=d_clip[2]+1;
 						pxya[3]:=pxya[1];
 						pxya[4]:=pxya[2];
-						pxya[5]:=clip[1];
+						pxya[5]:=d_clip[1];
 						vsl_color(vdiHandle,White);
-						v_pline(vdiHandle,3,pxya);
-						inc(tx);
-						inc(ty)
+						vPline(vdiHandle,3,pxya);
+						inc(d_tx);
+						inc(d_ty)
 					end
 				else
 					begin
-						pxya[0]:=clip[0]-1;
-						pxya[1]:=clip[3];
+						pxya[0]:=d_clip[0]-1;
+						pxya[1]:=d_clip[3];
 						pxya[2]:=pxya[0];
-						pxya[3]:=clip[1]-1;
-						pxya[4]:=clip[2];
+						pxya[3]:=d_clip[1]-1;
+						pxya[4]:=d_clip[2];
 						pxya[5]:=pxya[3];
 						vsl_color(vdiHandle,White);
-						v_pline(vdiHandle,3,pxya);
-						pxya[0]:=clip[0];
-						pxya[1]:=clip[3]+1;
-						pxya[2]:=clip[2]+1;
+						vPline(vdiHandle,3,pxya);
+						pxya[0]:=d_clip[0];
+						pxya[1]:=d_clip[3]+1;
+						pxya[2]:=d_clip[2]+1;
 						pxya[3]:=pxya[1];
 						pxya[4]:=pxya[2];
-						pxya[5]:=clip[1];
+						pxya[5]:=d_clip[1];
 						vsl_color(vdiHandle,LBlack);
-						v_pline(vdiHandle,3,pxya)
+						vPline(vdiHandle,3,pxya)
 					end;
 				if Attr.Colors>=LWhite then vsl_color(vdiHandle,LWhite)
 				else
 					vsl_color(vdiHandle,White);
-				pxya[0]:=clip[0]-1;
-				pxya[1]:=clip[3]+1;
+				pxya[0]:=d_clip[0]-1;
+				pxya[1]:=d_clip[3]+1;
 				pxya[2]:=pxya[0];
 				pxya[3]:=pxya[1];
-				v_pline(vdiHandle,2,pxya);
-				pxya[0]:=clip[2]+1;
-				pxya[1]:=clip[1]-1;
+				vPline(vdiHandle,2,pxya);
+				pxya[0]:=d_clip[2]+1;
+				pxya[1]:=d_clip[1]-1;
 				pxya[2]:=pxya[0];
 				pxya[3]:=pxya[1];
-				v_pline(vdiHandle,2,pxya);
+				vPline(vdiHandle,2,pxya);
 				vsl_color(vdiHandle,Black);
-				dec(clip[0],2);
-				dec(clip[1],2);
-				inc(clip[2],2);
-				inc(clip[3],2);
-				pxya[0]:=clip[0];
-				pxya[1]:=clip[1];
-				pxya[2]:=clip[2];
-				pxya[3]:=clip[1];
-				pxya[4]:=clip[2];
-				pxya[5]:=clip[3];
-				pxya[6]:=clip[0];
-				pxya[7]:=clip[3];
+				dec(d_clip[0],2);
+				dec(d_clip[1],2);
+				inc(d_clip[2],2);
+				inc(d_clip[3],2);
+				pxya[0]:=d_clip[0];
+				pxya[1]:=d_clip[1];
+				pxya[2]:=d_clip[2];
+				pxya[3]:=d_clip[1];
+				pxya[4]:=d_clip[2];
+				pxya[5]:=d_clip[3];
+				pxya[6]:=d_clip[0];
+				pxya[7]:=d_clip[3];
 				pxya[8]:=pxya[0];
 				pxya[9]:=pxya[1];
-				v_pline(vdiHandle,5,pxya);
-				dec(clip[0]);
-				dec(clip[1]);
-				inc(clip[2]);
-				inc(clip[3]);
-				pxya[0]:=clip[0];
-				pxya[1]:=clip[1];
-				pxya[2]:=clip[2];
-				pxya[3]:=clip[1];
-				pxya[4]:=clip[2];
-				pxya[5]:=clip[3];
-				pxya[6]:=clip[0];
-				pxya[7]:=clip[3];
+				vPline(vdiHandle,5,pxya);
+				dec(d_clip[0]);
+				dec(d_clip[1]);
+				inc(d_clip[2]);
+				inc(d_clip[3]);
+				pxya[0]:=d_clip[0];
+				pxya[1]:=d_clip[1];
+				pxya[2]:=d_clip[2];
+				pxya[3]:=d_clip[1];
+				pxya[4]:=d_clip[2];
+				pxya[5]:=d_clip[3];
+				pxya[6]:=d_clip[0];
+				pxya[7]:=d_clip[3];
 				pxya[8]:=pxya[0];
 				pxya[9]:=pxya[1];
-				v_pline(vdiHandle,5,pxya);
+				vPline(vdiHandle,5,pxya);
 				if bTst(parm^.pb_tree^[parm^.pb_obj].ob_flags,DEFAULT) then
 					begin
-						dec(clip[0]);
-						dec(clip[1]);
-						inc(clip[2]);
-						inc(clip[3]);
-						pxya[0]:=clip[0];
-						pxya[1]:=clip[1];
-						pxya[2]:=clip[2];
-						pxya[3]:=clip[1];
-						pxya[4]:=clip[2];
-						pxya[5]:=clip[3];
-						pxya[6]:=clip[0];
-						pxya[7]:=clip[3];
+						dec(d_clip[0]);
+						dec(d_clip[1]);
+						inc(d_clip[2]);
+						inc(d_clip[3]);
+						pxya[0]:=d_clip[0];
+						pxya[1]:=d_clip[1];
+						pxya[2]:=d_clip[2];
+						pxya[3]:=d_clip[1];
+						pxya[4]:=d_clip[2];
+						pxya[5]:=d_clip[3];
+						pxya[6]:=d_clip[0];
+						pxya[7]:=d_clip[3];
 						pxya[8]:=pxya[0];
 						pxya[9]:=pxya[1];
-						v_pline(vdiHandle,5,pxya)
+						vPline(vdiHandle,5,pxya)
 					end;
 				vswr_mode(vdiHandle,MD_TRANS);
 				if bTst(parm^.pr_currstate,DISABLED) then vst_effects(vdiHandle,TF_LIGHTENED);
-				v_gtext(vdiHandle,tx,ty,btn);
-				if scpos>0 then
+				vgText(vdiHandle,d_tx,d_ty,d_btn);
+				if d_scpos>0 then
 					begin
 						if bTst(parm^.pr_currstate,DISABLED) then vst_effects(vdiHandle,TF_LIGHTENED or TF_UNDERLINED)
 						else
 							begin
 								vst_effects(vdiHandle,TF_UNDERLINED);
-								vst_color(vdihandle,Red)
+								vst_color(vdihandle,SysInfo.HotKeyCol)
 							end;
-						v_gtext(vdiHandle,tx+(scpos-1)*Attr.charSWidth,ty,' ')
+						d_btn[0]:=#1;
+						d_btn[1]:=#32;
+						vgText(vdiHandle,d_tx+(d_scpos-1)*Attr.charSWidth,d_ty,d_btn)
 					end;
+				vsl_type(vdiHandle,LT_SOLID);
 				vsf_interior(vdiHandle,FIS_HOLLOW);
 				vsf_color(vdiHandle,Black);
 				vswr_mode(vdiHandle,MD_REPLACE);
@@ -14119,6 +17036,37 @@ procedure GetQSB(var p: pointer; var len: longint);
 	end;
 
 
+procedure GlobalAlloc(var p: pointer; size: longint);
+	var mp: boolean;
+
+	begin
+		if Application<>nil then mp:=Application^.MemoryProtection
+		else
+			mp:=false;
+		if mp then p:=mxalloc(size,allocmode)
+		else
+			getmem(p,size)
+	end;
+
+
+procedure GlobalFree(var p: pointer; size: longint);
+	var mp: boolean;
+
+	begin
+		if p=nil then exit;
+		if Application<>nil then mp:=Application^.MemoryProtection
+		else
+			mp:=false;
+		if not(mp) then
+			begin
+				freemem(p,size);
+				p:=nil
+			end
+		else
+			if mfree(p)=0 then p:=nil
+	end;
+
+
 function GetTempDir: string;
 
 	function gettemp(fn: string): boolean;
@@ -14172,7 +17120,29 @@ function GetHomeDir(RootDefault: boolean): string;
 	end;
 
 
+function xfilesys(const fsys: string): boolean;
+	var maxmode: longint;
+
+	begin
+		maxmode:=dpathconf(fsys,-1);
+		if maxmode<3 then xfilesys:=(pdomain(-1)=1)
+		else
+			if maxmode>=6 then xfilesys:=(dpathconf(fsys,6)<>1)
+			else
+				if maxmode>=5 then xfilesys:=(dpathconf(fsys,5)<>2)
+				else
+					xfilesys:=(dpathconf(fsys,3)>12)
+	end;
+
+
 function FileSelect(AParent: PWindow; ATitle,AMask: string; var APath,AFile: string; ForceExist: boolean): boolean;
+
+	begin
+		FileSelect:=FilePathSelect(AParent,ATitle,AMask,APath,AFile,false,ForceExist)
+	end;
+
+
+function FilePathSelect(AParent: PWindow; ATitle,AMask: string; var APath,AFile: string; AllowPaths,ForceExist: boolean): boolean;
 	label _again;
 
 	var fname,fpath,npath,dmy: string;
@@ -14180,13 +17150,21 @@ function FileSelect(AParent: PWindow; ATitle,AMask: string; var APath,AFile: str
 	    dummy                : longint;
 	    olddta               : DTAPtr;
 	    newdta               : DTA;
+	    fsel,nofsel2,xfs     : boolean;
 
 	begin
 		wind_update(BEG_UPDATE);
-		wind_update(BEG_MCTRL);
+		nofsel2:=true;
+		fsel:=GetCookie('FSEL',dummy);
+		if fsel then
+			if dummy<>0 then
+				with PSelectric(dummy)^ do
+					if magic='SLCT' then
+						if version>=$0200 then nofsel2:=false;
+		if nofsel2 then wind_update(BEG_MCTRL);
 		olddta:=FGetdta;
 		Fsetdta(@newdta);
-		FileSelect:=false;
+		FilePathSelect:=false;
 		if length(APath)=0 then dgetpath(fpath,0)
 		else
 			fpath:=APath;
@@ -14194,52 +17172,185 @@ function FileSelect(AParent: PWindow; ATitle,AMask: string; var APath,AFile: str
 		if StrPRight(StrPLeft(fpath,2),1)<>':' then fpath:=chr(dgetdrv+65)+':'+fpath;
 		if fpath[3]<>'\' then
 			fpath:=StrPLeft(fpath,2)+'\'+StrPRight(fpath,length(fpath)-2);
+		xfs:=xfilesys(fpath);
+		if not(xfs) then fpath:=StrPUpper(fpath);
 		if length(AMask)=0 then fpath:=fpath+'*.*'
 		else
-			fpath:=fpath+AMask;
-		fname:=AFile;
+			begin
+				if not(xfs) then AMask:=StrPUpper(AMask);
+				fpath:=fpath+AMask
+			end;
+		if xfs then fname:=AFile
+		else
+			fname:=StrPUpper(AFile);
 		_again:
-		if ((GEMVersion>=$0140) and (GEMVersion<$0200)) or (GEMVersion>=$0300) or GetCookie('FSEL',dummy) then
+		{ fslx_do()? }
+		if ((GEMVersion>=$0140) and (GEMVersion<$0200)) or (GEMVersion>=$0300) or fsel then
 			ret:=fsel_exinput(fpath,fname,exitButton,ATitle)
 		else
 			ret:=fsel_input(fpath,fname,exitButton);
-		if (exitButton=1) and (ret<>0) and (length(fname)>0) then
+		if (exitButton=1) and (ret<>0) and ((length(fname)>0) or AllowPaths) then
 			begin
-				dummy:=pos('.',AMask);
-				if ((pos('.',fname)=0) or (StrPRight(fname,1)='.')) and Between(dummy,1,length(AMask)-1) then
+				if length(fname)>0 then
 					begin
-						dmy:=StrPRight(AMask,length(AMask)-dummy);
-						if (pos('?',dmy)=0) and (pos('*',dmy)=0) then
+						dummy:=pos('.',AMask);
+						if ((pos('.',fname)=0) or (StrPRight(fname,1)='.')) and Between(dummy,1,length(AMask)-1) then
 							begin
-								if StrPRight(fname,1)='.' then fname:=fname+dmy
-								else
-									fname:=fname+'.'+dmy
+								dmy:=StrPRight(AMask,length(AMask)-dummy);
+								if (pos('?',dmy)=0) and (pos('*',dmy)=0) then
+									begin
+										if StrPRight(fname,1)='.' then fname:=fname+dmy
+										else
+											fname:=fname+'.'+dmy
+									end
 							end
 					end;
 				npath:=StrPLeft(fpath,RPos('\',fpath));
 				if ForceExist then
-					if not(Exist(npath+fname)) then
-						begin
-							if Application<>nil then
-								with Application^ do
-									begin
-										if (Attr.Country=FRG) or (Attr.Country=SWG) then Alert(nil,1,NOTE,'"'+fname+'" existiert nicht.','  &OK  ')
-										else
-											Alert(nil,1,NOTE,'"'+fname+'" does not exist.','  &OK  ')
-									end
-							else
-								form_alert(1,'[1][ | | |"'+fname+'" existiert nicht.  ][   OK   ]');
-							goto _again
-						end;
+					if length(fname)>0 then
+						if not(Exist(npath+fname)) then
+							begin
+								if Application<>nil then
+									with Application^ do
+										begin
+											if Attr.Country=FRA then
+												Alert(nil,1,NOTE,'"'+fname+'" n''existe pas.','  &OK  ')
+											else if (Attr.Country=FRG) or (Attr.Country=SWG) then
+												Alert(nil,1,NOTE,'"'+fname+'" existiert nicht.','  &OK  ')
+											else
+												Alert(nil,1,NOTE,'"'+fname+'" does not exist.','  &OK  ')
+										end
+								else
+									form_alert(1,'[1][ | | |"'+fname+'" existiert nicht.  ][   OK   ]');
+								goto _again
+							end;
 				APath:=npath;
 				AFile:=fname;
-				FileSelect:=true
+				FilePathSelect:=true
 			end;
 		Fsetdta(olddta);
-		wind_update(END_MCTRL);
+		if nofsel2 then wind_update(END_MCTRL);
 		wind_update(END_UPDATE);
 		if Application<>nil then
 			Application^.RestoreModalDialog(AParent)
+	end;
+
+
+function XFileSelect(AParent: PWindow; ATitle,AMask: string; var APath,AFile: string; MaxFiles: integer; Group: byte; ForceExist,Modal: boolean): boolean;
+	label _raus;
+
+	var fdmstr     : TFdmStr;
+	    nofsel2,xfs: boolean;
+	    indx       : byte;
+	    pkt        : integer;
+	    dummy      : PSelectric;
+	    pisel      : array[0..255] of char;
+	    olddta     : DTAPtr;
+	    newdta     : DTA;
+	    fpath,dmy  : string;
+	    pipe       : Pipearray;
+
+	begin
+		wind_update(BEG_UPDATE);
+		nofsel2:=true;
+		if GetCookie('FSEL',longint(dummy)) then
+			if dummy<>nil then
+				with dummy^ do
+					if magic='SLCT' then
+						if version>=$0200 then nofsel2:=false;
+		if nofsel2 or Modal then XFileSelect:=FileSelect(AParent,ATitle,AMask,APath,AFile,ForceExist)
+		else
+			begin
+				XFileSelect:=false;
+				if AParent<>nil then
+					for pkt:=0 to XSELMAX do
+						if xselwind[pkt].window=AParent then
+							if xselwind[pkt].group=Group then
+								begin
+									pipe[0]:=WIN_TOPPED;
+									pipe[1]:=Application^.apID;
+									pipe[2]:=0;
+									pipe[3]:=xselwind[pkt].fdmwhnd;
+									appl_write(freedom,16,@pipe);
+									goto _raus
+								end;
+				olddta:=FGetdta;
+				Fsetdta(@newdta);
+				if length(APath)=0 then dgetpath(fpath,0)
+				else
+					fpath:=APath;
+				if StrPRight(fpath,1)<>'\' then fpath:=fpath+'\';
+				if StrPRight(StrPLeft(fpath,2),1)<>':' then fpath:=chr(dgetdrv+65)+':'+fpath;
+				if fpath[3]<>'\' then
+					fpath:=StrPLeft(fpath,2)+'\'+StrPRight(fpath,length(fpath)-2);
+				xfs:=xfilesys(fpath);
+				if not(xfs) then fpath:=StrPUpper(fpath);
+				if length(AMask)=0 then fpath:=fpath+'*.*'
+				else
+					begin
+						if not(xfs) then AMask:=StrPUpper(AMask);
+						fpath:=fpath+AMask
+					end;
+				ATitle:=StrPLeft(StrPTrimF(ATitle),254)+#0;
+				indx:=XSELMAX+1;
+				for pkt:=XSELMAX downto 0 do if xselwind[pkt].window=nil then indx:=pkt;
+				with fdmstr do
+					begin
+						magic:='?Fdm';
+						id:=indx;
+						if ForceExist then id:=id or 128;
+						id:=(id shl 8) or Group;
+						if MaxFiles<1 then maxsel:=32767
+						else
+							maxsel:=MaxFiles;
+						flags:=$e0000000;
+						StrPCopy(path,fpath)
+					end;
+				if xfs then StrPCopy(pisel,AFile)
+				else
+					StrPCopy(pisel,StrPUpper(AFile));
+				with AES_pb do
+					begin
+						control^[0]:=91;
+						control^[1]:=0;
+						control^[2]:=2;
+						control^[3]:=3;
+						control^[4]:=0;
+						addrin^[0]:=@fdmstr;
+						addrin^[1]:=@pisel;
+						addrin^[2]:=@ATitle[1];
+						_crystal(@AES_pb);
+						if fdmstr.magic='!Fdm' then
+							begin
+								xselwind[indx].window:=AParent;
+								xselwind[indx].fdmwhnd:=fdmstr.handle;
+								xselwind[indx].group:=Group;
+								freedom:=fdmstr.server
+							end
+						else
+							if (intout^[0]<>0) and (intout^[1]=1) and (StrLen(pisel)>0) then
+								begin
+									pkt:=pos('.',AMask);
+									AFile:=StrPas(pisel);
+									fpath:=StrPas(PChar(@fdmstr));
+									if ((pos('.',AFile)=0) or (StrPRight(AFile,1)='.')) and Between(pkt,1,length(AMask)-1) then
+										begin
+											dmy:=StrPRight(AMask,length(AMask)-pkt);
+											if (pos('?',dmy)=0) and (pos('*',dmy)=0) then
+												begin
+													if StrPRight(AFile,1)='.' then AFile:=AFile+dmy
+													else
+														AFile:=AFile+'.'+dmy
+												end
+										end;
+									APath:=StrPLeft(fpath,RPos('\',fpath));
+									XFileSelect:=true
+								end
+					end;
+				Fsetdta(olddta)
+			end;
+		_raus:
+		wind_update(END_UPDATE)
 	end;
 
 
@@ -14258,16 +17369,28 @@ procedure checkinfpath(var FileName: string);
 							FileName:=pfad+FileName;
 							exit
 						end
+					else
+						begin
+							pfad:=GetHomeDir(false);
+							if PathExist(pfad) then
+								begin
+									FileName:=pfad+FileName;
+									exit
+								end
+						end
 				end;
 		if Application^.apPath<>nil then FileName:=Application^.apPath^+FileName
 	end;
 
 
 function OpenPrivateProfile(FileName: string): boolean;
-	label _error,_exit;
+	label _exit;
 
-	var f: text;
-	    t: string;
+	var buf    : PByteArray;
+	    bufsize,
+	    res,w  : longint;
+	    hdl    : integer;
+	    txt    : string;
 
 	begin
 		OpenPrivateProfile:=false;
@@ -14282,25 +17405,35 @@ function OpenPrivateProfile(FileName: string): boolean;
 				DisposeStr(profilename);
 				exit
 			end;
+		lastprofkey:=nil;
+		profkeyat:=0;
 		profilechng:=false;
 		if Exist(FileName) then
 			begin
+				buf:=GetMemBuffer(16384,128,bufsize);
+				if buf=nil then exit;
 				wind_update(BEG_UPDATE);
 				BusyMouse;
-				assign(f,FileName);
-				reset(f);
-				if ioresult<>0 then goto _exit;
-				while not(eof(f)) do
-					begin
-						if ioresult<>0 then goto _error;
-						readln(f,t);
-						profile^.Insert(ChrNew(StrPTrimF(t)))
-					end;
-				_error:
-				close(f);
-				ioresult;
+				res:=fopen(FileName,FO_READ);
+				if res<0 then goto _exit;
+				hdl:=integer(res);
+				txt:='';
+				repeat
+					res:=fread(hdl,bufsize,buf);
+					if res>0 then
+						for w:=0 to res-1 do
+							if buf^[w]=CR then
+								begin
+									profile^.Insert(ChrNew(StrPTrimF(txt)));
+									txt:=''
+								end
+							else
+								if buf^[w]>=32 then txt:=txt+chr(buf^[w])
+				until res<>bufsize;
+				fclose(hdl);
 				OpenPrivateProfile:=true;
 				_exit:
+				freemem(buf,bufsize);
 				ArrowMouse;
 				wind_update(END_UPDATE)
 			end
@@ -14308,11 +17441,56 @@ function OpenPrivateProfile(FileName: string): boolean;
 
 
 function SavePrivateProfile: boolean;
-	label _exit,_close;
+	label _exit,_error;
 
-	var tfile : string;
-	    f,ftmp: text;
-	    q     : longint;
+	var tfile  : string;
+	    q,l,res,
+	    bufcnt,
+	    bufsize: longint;
+	    hdl    : integer;
+	    buf    : PByteArray;
+	    lend   : string[2];
+	    werror : boolean;
+
+	function bwrite(var buffer; count: longint): boolean;
+		var rlen: longint;
+
+		begin
+			if count>bufsize then
+				begin
+					werror:=true;
+					bwrite:=true;
+					exit
+				end;
+			bwrite:=false;
+			if count<1 then
+				begin
+					if count=0 then exit;
+					if bufcnt>0 then
+						begin
+							rlen:=fwrite(hdl,bufcnt,buf);
+							if rlen<>bufcnt then
+								begin
+									werror:=true;
+									bwrite:=true
+								end;
+							bufcnt:=0
+						end;
+					exit
+				end;
+			if bufcnt+count>bufsize then
+				begin
+					rlen:=fwrite(hdl,bufcnt,buf);
+					if rlen<>bufcnt then
+						begin
+							werror:=true;
+							bwrite:=true
+						end;
+					bufcnt:=0
+				end;
+			move(buffer,buf^[bufcnt],count);
+			inc(bufcnt,count)
+		end;
 
 	begin
 		SavePrivateProfile:=false;
@@ -14320,32 +17498,41 @@ function SavePrivateProfile: boolean;
 			begin
 				if profilechng then
 					begin
+						buf:=GetMemBuffer(16384,512,bufsize);
+						if buf=nil then exit;
 						wind_update(BEG_UPDATE);
 						BusyMouse;
 						tfile:=GetPath(profilename^)+GetTempFilename;
-						assign(ftmp,tfile);
-						assign(f,profilename^);
-						rewrite(ftmp);
-						if ioresult<>0 then goto _exit;
+						res:=fcreate(tfile,0);
+						if res<0 then goto _exit;
+						hdl:=integer(res);
+						werror:=false;
+						bufcnt:=0;
+						lend:=#13#10;
 						if profile^.Count>0 then
 							for q:=0 to profile^.Count-1 do
 								if profile^.At(q)<>nil then
 									begin
-										if ioresult<>0 then goto _close;
-										writeln(ftmp,PChar(profile^.At(q)))
+										l:=StrLen(profile^.At(q));
+										if l>0 then
+											if bwrite(PChar(profile^.At(q))^,l) then goto _error;
+										if bwrite(lend[1],2) then goto _error
 									end;
-						_close:
-						close(ftmp);
-						ioresult;
-						erase(f);
-						ioresult;
-						rename(ftmp,profilename^);
-						if ioresult=0 then
+						bwrite(lend,-1);
+						_error:
+						fclose(hdl);
+						if werror then fdelete(tfile)
+						else
 							begin
-								SavePrivateProfile:=true;
-								profilechng:=false
+								fdelete(profilename^);
+								if frename(tfile,profilename^)=0 then
+									begin
+										SavePrivateProfile:=true;
+										profilechng:=false
+									end
 							end;
 						_exit:
+						freemem(buf,bufsize);
 						ArrowMouse;
 						wind_update(END_UPDATE)
 					end
@@ -14362,6 +17549,7 @@ function ClosePrivateProfile: boolean;
 			begin
 				ClosePrivateProfile:=SavePrivateProfile;
 				dispose(profile,Done);
+				DisposeStr(lastprofkey);
 				DisposeStr(profilename);
 				profile:=nil
 			end
@@ -14371,15 +17559,59 @@ function ClosePrivateProfile: boolean;
 
 
 function WritePrivateProfileString(AppName,KeyName,Value,FileName: string): boolean;
-	label _exit,_error,_closeall,_fertig;
+	label _exit,_error,_closeall,_fertig,_weiter;
 
-	var f,ftmp        : text;
-	    t,ca,key,aname,
-	    kname,tfile   : string;
-	    p             : integer;
-	    found,rblk    : boolean;
-	    q             : longint;
+	var t,ca,key,aname,
+	    kname,tfile,s : string;
+	    p,rhdl,whdl   : integer;
+	    found,rblk,
+	    werror        : boolean;
 	    rem           : string[1];
+	    lend          : string[2];
+	    wbuf,rbuf     : PByteArray;
+	    wbufsize,res,
+	    rbufsize,
+	    wbufcnt,q,w   : longint;
+
+	function bwrite(var buffer; count: longint): boolean;
+		var rlen: longint;
+
+		begin
+			if count>wbufsize then
+				begin
+					werror:=true;
+					bwrite:=true;
+					exit
+				end;
+			bwrite:=false;
+			if count<1 then
+				begin
+					if count=0 then exit;
+					if wbufcnt>0 then
+						begin
+							rlen:=fwrite(whdl,wbufcnt,wbuf);
+							if rlen<>wbufcnt then
+								begin
+									werror:=true;
+									bwrite:=true
+								end;
+							wbufcnt:=0
+						end;
+					exit
+				end;
+			if wbufcnt+count>wbufsize then
+				begin
+					rlen:=fwrite(whdl,wbufcnt,wbuf);
+					if rlen<>wbufcnt then
+						begin
+							werror:=true;
+							bwrite:=true
+						end;
+					wbufcnt:=0
+				end;
+			move(buffer,wbuf^[wbufcnt],count);
+			inc(wbufcnt,count)
+		end;
 
 	begin
 		aname:=StrPUpper(StrPTrimF(AppName));
@@ -14394,6 +17626,8 @@ function WritePrivateProfileString(AppName,KeyName,Value,FileName: string): bool
 			if profilename^=StrPLower(FileName) then
 				begin
 					q:=0;
+					if lastprofkey<>nil then
+						if aname=lastprofkey^ then q:=profkeyat;
 					while q<profile^.Count do
 						begin
 							if profile^.At(q)=nil then
@@ -14415,7 +17649,15 @@ function WritePrivateProfileString(AppName,KeyName,Value,FileName: string): bool
 									continue
 								end;
 							if (StrPLeft(t,1)='[') and (StrPRight(t,1)=']') then
-								ca:=StrPUpper(copy(t,2,length(t)-2))
+								begin
+									ca:=StrPUpper(copy(t,2,length(t)-2));
+									if ca=aname then
+										begin
+											DisposeStr(lastprofkey);
+											lastprofkey:=NewStr(ca);
+											profkeyat:=q
+										end
+								end
 							else
 								if ca=aname then
 									begin
@@ -14458,91 +17700,149 @@ function WritePrivateProfileString(AppName,KeyName,Value,FileName: string): bool
 					profilechng:=true;
 					exit
 				end;
+		wbuf:=GetMemBuffer(16384,512,wbufsize);
+		if wbuf=nil then exit;
+		rbuf:=GetMemBuffer(16384,128,rbufsize);
+		if rbuf=nil then
+			begin
+				freemem(wbuf,wbufsize);
+				exit
+			end;
 		wind_update(BEG_UPDATE);
 		tfile:=GetPath(FileName)+GetTempFilename;
-		assign(f,FileName);
+		wbufcnt:=0;
+		werror:=false;
 		if not(Exist(FileName)) then
 			begin
-				rewrite(f);
-				if ioresult<>0 then goto _exit;
-				close(f)
+				res:=fcreate(FileName,0);
+				if res<0 then goto _exit;
+				if fclose(integer(res))<0 then goto _exit
 			end;
-		rename(f,tfile);
-		if ioresult<>0 then goto _exit;
-		assign(f,FileName);
-		assign(ftmp,tfile);
-		rewrite(f);
-		if ioresult<>0 then goto _exit;
-		reset(ftmp);
-		if ioresult<>0 then goto _error;
-		while not(eof(ftmp)) do
-			begin
-				if ioresult<>0 then goto _closeall;
-				readln(ftmp,t);
-				StrPTrim(t);
-				if StrPLeft(t,2)='##' then
-					begin
-						rblk:=not(rblk);
-						writeln(f,t);
-						continue
-					end;
-				rem:=StrPLeft(t,1);
-				if found or rblk or (rem=';') or (rem='#') then writeln(f,t)
-				else
-					begin
-						if (StrPLeft(t,1)='[') and (StrPRight(t,1)=']') then
-							begin
-								writeln(f,t);
-								ca:=StrPUpper(copy(t,2,length(t)-2))
-							end
-						else
-							begin
-								if ca=aname then
-									begin
-										if length(t)=0 then
-											begin
-												if length(Value)>0 then
-													writeln(f,StrPTrimF(KeyName)+'='+Value);
-												writeln(f);
-												found:=true
-											end
-										else
-											begin
-												p:=pos('=',t);
-												if p>0 then
-													begin
-														if StrPUpper(StrPLeft(t,p-1))=kname then
-															begin
-																if length(Value)>0 then
-																	writeln(f,StrPTrimF(KeyName)+'='+Value);
-																found:=true
-															end
-														else
-															writeln(f,t)
-													end
-											end
-									end
-								else
-									writeln(f,t)
-							end
-					end
-			end;
+		if frename(FileName,tfile)<0 then goto _exit;
+		res:=fcreate(FileName,0);
+		if res<0 then goto _exit;
+		whdl:=integer(res);
+		res:=fopen(tfile,FO_READ);
+		if res<0 then goto _error;
+		rhdl:=integer(res);
+		t:='';
+		lend:=#13#10;
+		repeat
+			res:=fread(rhdl,rbufsize,rbuf);
+			if res>0 then
+				for w:=0 to res-1 do
+					if rbuf^[w]=CR then
+						begin
+							StrPTrim(t);
+							if StrPLeft(t,2)='##' then
+								begin
+									rblk:=not(rblk);
+									if bwrite(t[1],length(t)) then goto _closeall;
+									if bwrite(lend[1],2) then goto _closeall;
+									goto _weiter
+								end;
+							rem:=StrPLeft(t,1);
+							if found or rblk or (rem=';') or (rem='#') then
+								begin
+									if bwrite(t[1],length(t)) then goto _closeall;
+									if bwrite(lend[1],2) then goto _closeall
+								end
+							else
+								begin
+									if (StrPLeft(t,1)='[') and (StrPRight(t,1)=']') then
+										begin
+											if bwrite(t[1],length(t)) then goto _closeall;
+											if bwrite(lend[1],2) then goto _closeall;
+											ca:=StrPUpper(copy(t,2,length(t)-2))
+										end
+									else
+										begin
+											if ca=aname then
+												begin
+													if length(t)=0 then
+														begin
+															if length(Value)>0 then
+																begin
+																	s:=StrPTrimF(KeyName)+'='+Value+#13#10;
+																	if bwrite(s[1],length(s)) then goto _closeall
+																end;
+															if bwrite(lend[1],2) then goto _closeall;
+															found:=true
+														end
+													else
+														begin
+															p:=pos('=',t);
+															if p>0 then
+																begin
+																	if StrPUpper(StrPLeft(t,p-1))=kname then
+																		begin
+																			if length(Value)>0 then
+																				begin
+																					s:=StrPTrimF(KeyName)+'='+Value+#13#10;
+																					if bwrite(s[1],length(s)) then goto _closeall
+																				end;
+																			found:=true
+																		end
+																	else
+																		begin
+																			if bwrite(t[1],length(t)) then goto _closeall;
+																			if bwrite(lend[1],2) then goto _closeall
+																		end
+																end
+														end
+												end
+											else
+												begin
+													if bwrite(t[1],length(t)) then goto _closeall;
+													if bwrite(lend[1],2) then goto _closeall
+												end
+										end
+								end;
+							_weiter:
+							t:=''
+						end
+					else
+						if rbuf^[w]>=32 then t:=t+chr(rbuf^[w])
+		until res<>rbufsize;
+		if res<0 then goto _closeall;
 		if not(found) then
 			begin
-				if rblk then writeln(f,'##');
-				if ca<>aname then writeln(f,'['+StrPTrimF(AppName)+']');
-				if length(Value)>0 then writeln(f,StrPTrimF(KeyName)+'='+Value);
-				writeln(f)
+				if rblk then
+					begin
+						s:='##'#13#10;
+						if bwrite(s[1],4) then goto _closeall
+					end;
+				if ca<>aname then
+					begin
+						s:='['+StrPTrimF(AppName)+']'#13#10;
+						if bwrite(s[1],length(s)) then goto _closeall
+					end;
+				if length(Value)>0 then
+					begin
+						s:=StrPTrimF(KeyName)+'='+Value+#13#10;
+						if bwrite(s[1],length(s)) then goto _closeall
+					end;
+				if bwrite(lend[1],2) then goto _closeall
 			end;
 		WritePrivateProfileString:=true;
 		_closeall:
-		close(ftmp);
+		fclose(rhdl);
 		_error:
-		close(f);
-		erase(ftmp);
+		fclose(whdl);
+		fdelete(tfile);
 		_exit:
-		wind_update(END_UPDATE);
-		ioresult
+		freemem(wbuf,wbufsize);
+		freemem(rbuf,rbufsize);
+		wind_update(END_UPDATE)
+	end;
+
+
+function WritePrivateProfileBool(AppName,KeyName: string; Value: boolean; FileName: string): boolean;
+
+	begin
+		if Value then WritePrivateProfileBool:=WritePrivateProfileString(AppName,KeyName,'TRUE',FileName)
+		else
+			WritePrivateProfileBool:=WritePrivateProfileString(AppName,KeyName,'FALSE',FileName)
 	end;
 
 
@@ -14554,14 +17854,15 @@ function WritePrivateProfileInt(AppName,KeyName: string; Value: longint; FileNam
 
 
 function GetPrivateProfileString(AppName,KeyName,Default,FileName: string): string;
-	label _exit,_error,_default;
+	label _exit,_default,_error,_weiter;
 
-	var f   : text;
-	    t,ca: string;
-	    p   : integer;
-	    q   : longint;
-	    rem : string[1];
-	    rblk: boolean;
+	var buf    : PByteArray;
+	    bufsize,
+	    res,w,q: longint;
+	    hdl,p  : integer;
+	    t,ca   : string;
+	    rem    : string[1];
+	    rblk   : boolean;
 
 	begin
 		AppName:=StrPUpper(StrPTrimF(AppName));
@@ -14574,6 +17875,8 @@ function GetPrivateProfileString(AppName,KeyName,Default,FileName: string): stri
 			if profilename^=StrPLower(FileName) then
 				begin
 					q:=0;
+					if lastprofkey<>nil then
+						if AppName=lastprofkey^ then q:=profkeyat;
 					while q<profile^.Count do
 						begin
 							if profile^.At(q)=nil then
@@ -14594,7 +17897,55 @@ function GetPrivateProfileString(AppName,KeyName,Default,FileName: string): stri
 									continue
 								end;
 							if (StrPLeft(t,1)='[') and (StrPRight(t,1)=']') then
-								ca:=StrPUpper(copy(t,2,length(t)-2))
+								begin
+									ca:=StrPUpper(copy(t,2,length(t)-2));
+									if ca=AppName then
+										begin
+											DisposeStr(lastprofkey);
+											lastprofkey:=NewStr(ca);
+											profkeyat:=q
+										end
+								end
+							else
+								if ca=AppName then
+									begin
+										rem:=StrPLeft(t,1);
+										if (rem<>';') and (rem<>'#') then
+											begin
+												p:=pos('=',t);
+												if p>0 then
+													if StrPUpper(StrPLeft(t,p-1))=KeyName then
+														begin
+															GetPrivateProfileString:=StrPRight(t,length(t)-p);
+															exit
+														end
+											end
+									end;
+							inc(q)
+						end;
+					goto _default
+				end;
+		wind_update(BEG_UPDATE);
+		buf:=GetMemBuffer(16384,128,bufsize);
+		if buf=nil then goto _exit;
+		res:=fopen(FileName,FO_READ);
+		if res<0 then goto _error;
+		hdl:=integer(res);
+		t:='';
+		repeat
+			res:=fread(hdl,bufsize,buf);
+			if res>0 then
+				for w:=0 to res-1 do
+					if buf^[w]=CR then
+						begin
+							StrPTrim(t);
+							if StrPLeft(t,2)='##' then
+								begin
+									rblk:=not(rblk);
+									goto _weiter
+								end;
+							if rblk then goto _weiter;
+							if (StrPLeft(t,1)='[') and (StrPRight(t,1)=']') then ca:=StrPUpper(copy(t,2,length(t)-2))
 							else
 								begin
 									rem:=StrPLeft(t,1);
@@ -14606,52 +17957,22 @@ function GetPrivateProfileString(AppName,KeyName,Default,FileName: string): stri
 													if ca=AppName then
 														begin
 															GetPrivateProfileString:=StrPRight(t,length(t)-p);
+															fclose(hdl);
+															freemem(buf,bufsize);
+															wind_update(END_UPDATE);
 															exit
 														end
 										end
 								end;
-							inc(q)
-						end;
-					goto _default
-				end;
-		wind_update(BEG_UPDATE);
-		assign(f,FileName);
-		reset(f);
-		if ioresult<>0 then goto _exit;
-		while not(eof(f)) do
-			begin
-				if ioresult<>0 then goto _error;
-				readln(f,t);
-				StrPTrim(t);
-				if StrPLeft(t,2)='##' then
-					begin
-						rblk:=not(rblk);
-						continue
-					end;
-				if rblk then continue;
-				if (StrPLeft(t,1)='[') and (StrPRight(t,1)=']') then
-					ca:=StrPUpper(copy(t,2,length(t)-2))
-				else
-					begin
-						rem:=StrPLeft(t,1);
-						if (rem<>';') and (rem<>'#') then
-							begin
-								p:=pos('=',t);
-								if p>0 then
-									if StrPUpper(StrPLeft(t,p-1))=KeyName then
-										if ca=AppName then
-											begin
-												GetPrivateProfileString:=StrPRight(t,length(t)-p);
-												close(f);
-												wind_update(END_UPDATE);
-												exit
-											end
-							end
-					end
-			end;
+							_weiter:
+							t:=''
+						end
+					else
+						if buf^[w]>=32 then t:=t+chr(buf^[w])
+		until res<>bufsize;
+		fclose(hdl);
 		_error:
-		close(f);
-		ioresult;
+		freemem(buf,bufsize);
 		_exit:
 		wind_update(END_UPDATE);
 		_default:
@@ -14659,8 +17980,24 @@ function GetPrivateProfileString(AppName,KeyName,Default,FileName: string): stri
 	end;
 
 
+function GetPrivateProfileBool(AppName,KeyName: string; Default: boolean; FileName: string): boolean;
+	var sval: string;
+
+	begin
+		sval:=GetPrivateProfileString(AppName,KeyName,'',FileName);
+		if sval='' then GetPrivateProfileBool:=Default
+		else
+			begin
+				StrPUpper(sval);
+				if (sval='0') or (sval='FALSE') then GetPrivateProfileBool:=false
+				else
+					GetPrivateProfileBool:=true
+			end
+	end;
+
+
 function GetPrivateProfileInt(AppName,KeyName: string; Default: longint; FileName: string): longint;
-	var sval : string;
+	var sval: string;
 
 	begin
 		sval:=GetPrivateProfileString(AppName,KeyName,'',FileName);
@@ -14670,10 +18007,34 @@ function GetPrivateProfileInt(AppName,KeyName: string; Default: longint; FileNam
 	end;
 
 
+function GetPrivateProfileIntRange(AppName,KeyName: string; Default,MinVal,MaxVal: longint; FileName: string): longint;
+	var ret: longint;
+
+	begin
+		if MinVal>MaxVal then
+			begin
+				ret:=MinVal;
+				MinVal:=MaxVal;
+				MaxVal:=ret
+			end;
+		ret:=GetPrivateProfileInt(AppName,KeyName,Default,FileName);
+		if ret<MinVal then ret:=MinVal;
+		if ret>MaxVal then ret:=MaxVal;
+		GetPrivateProfileIntRange:=ret
+	end;
+
+
 function WriteProfileString(AppName,KeyName,Value: string): boolean;
 
 	begin
 		WriteProfileString:=WritePrivateProfileString(AppName,KeyName,Value,GetHomeDir(true)+SYSPROFILE)
+	end;
+
+
+function WriteProfileBool(AppName,KeyName: string; Value: boolean): boolean;
+
+	begin
+		WriteProfileBool:=WritePrivateProfileBool(AppName,KeyName,Value,GetHomeDir(true)+SYSPROFILE)
 	end;
 
 
@@ -14691,10 +18052,24 @@ function GetProfileString(AppName,KeyName,Default: string): string;
 	end;
 
 
+function GetProfileBool(AppName,KeyName: string; Default: boolean): boolean;
+
+	begin
+		GetProfileBool:=GetPrivateProfileBool(AppName,KeyName,Default,GetHomeDir(true)+SYSPROFILE)
+	end;
+
+
 function GetProfileInt(AppName,KeyName: string; Default: longint): longint;
 
 	begin
 		GetProfileInt:=GetPrivateProfileInt(AppName,KeyName,Default,GetHomeDir(true)+SYSPROFILE)
+	end;
+
+
+function GetProfileIntRange(AppName,KeyName: string; Default,MinVal,MaxVal: longint): longint;
+
+	begin
+		GetProfileIntRange:=GetPrivateProfileIntRange(AppName,KeyName,Default,MinVal,MaxVal,GetHomeDir(true)+SYSPROFILE)
 	end;
 
 
@@ -14806,7 +18181,7 @@ procedure vr_trnfm(handle: integer; psrcMFDB,pdesMFDB: MFDB);
 	begin
 		if (psrcMFDB.fd_addr=pdesMFDB.fd_addr) and (psrcMFDB.fd_addr<>nil) then
 			begin
-				len:=(psrcMFDB.fd_wdwidth*psrcMFDB.fd_h*psrcMFDB.fd_nplanes) shl 1;
+				len:=(longint(psrcMFDB.fd_wdwidth)*longint(psrcMFDB.fd_h)*longint(psrcMFDB.fd_nplanes)) shl 1;
 				getmem(dest,len);
 				if dest=nil then gem.vr_trnfm(handle,psrcMFDB,pdesMFDB)
 				else
@@ -14854,6 +18229,26 @@ procedure vdi_fix(var pfd: MFDB; theAddr: pointer; w,h: integer);
 	end;
 
 
+function SetSystemFont(handle: integer; var wc,hc,wb,hb: integer): integer;
+
+	begin
+		SetSystemFont:=vst_font(handle,SysInfo.Font.ID);
+		if SysInfo.Font.Point>0 then vst_point(handle,SysInfo.Font.Point,wc,hc,wb,hb)
+		else
+			vst_height(handle,SysInfo.Font.Height,wc,hc,wb,hb)
+	end;
+
+
+function SetSmallSystemFont(handle: integer; var wc,hc,wb,hb: integer): integer;
+
+	begin
+		SetSmallSystemFont:=vst_font(handle,SysInfo.SmallFont.ID);
+		if SysInfo.SmallFont.Point>0 then vst_point(handle,SysInfo.SmallFont.Point,wc,hc,wb,hb)
+		else
+			vst_height(handle,SysInfo.SmallFont.Height,wc,hc,wb,hb)
+	end;
+
+
 procedure SetMousePos(mX,mY: integer);
 	var arec: APPLRECORD;
 
@@ -14882,7 +18277,7 @@ function IsMouseBusy: boolean;
 procedure ShowMouse;
 
 	begin
-		gem.graf_mouse(M_ON,nil);
+		graf_mouse(M_ON,nil);
 		dec(mhstack)
 	end;
 
@@ -14890,7 +18285,7 @@ procedure ShowMouse;
 procedure HideMouse;
 
 	begin
-		gem.graf_mouse(M_OFF,nil);
+		graf_mouse(M_OFF,nil);
 		inc(mhstack)
 	end;
 
@@ -14931,7 +18326,8 @@ procedure SliceMouseNext;
 			begin
 				SetMouse(slmouse,nil);
 				inc(slmouse);
-				if slmouse>IDC_SLICE4 then slmouse:=IDC_SLICE1
+				if slmouse>IDC_SLICE4 then slmouse:=IDC_SLICE1;
+				evnt_timer(1,0)
 			end
 	end;
 
@@ -14943,11 +18339,89 @@ procedure LastMouse;
 	end;
 
 
+function appl_xgetinfo(ap_gtype: integer; var ap_gout1,ap_gout2,ap_gout3,ap_gout4: integer): boolean;
+
+	begin
+		appl_xgetinfo:=false;
+		if has_agi then
+			with AES_pb do
+				begin
+					control^[0]:=130;
+					control^[1]:=1;
+					control^[2]:=5;
+					control^[3]:=0;
+					control^[4]:=0;
+					intin^[0]:=ap_gtype;
+					_crystal(@AES_pb);
+					if intout^[0]<>0 then
+						begin
+							ap_gout1:=intout^[1];
+							ap_gout2:=intout^[2];
+							ap_gout3:=intout^[3];
+							ap_gout4:=intout^[4];
+							appl_xgetinfo:=true
+						end
+				end
+		else
+			if paf<>nil then
+				if paf^.af_magic='AFnt' then
+					appl_xgetinfo:=(paf^.afnt_getinfo(nil,nil,0,0,0,ap_gtype,ap_gout1,ap_gout2,ap_gout3,ap_gout4)<>0)
+	end;
+
+
+function objc_wedit(ob_edtree: PTree; ob_edobject,ob_edchar: integer; var ob_edidx: integer; ob_edkind,ob_edwnd: integer): integer;
+
+	begin
+		with AES_pb do
+			begin
+				control^[0]:=65;
+				control^[1]:=5;
+				control^[2]:=2;
+				control^[3]:=1;
+				control^[4]:=0;
+				addrin^[0]:=ob_edtree;
+				intin^[0]:=ob_edobject;
+				intin^[1]:=ob_edchar;
+				intin^[2]:=ob_edidx;
+				intin^[3]:=ob_edkind;
+				intin^[4]:=ob_edwnd
+			end;
+		_crystal(@AES_pb);
+		ob_edidx:=AES_pb.intout^[1];
+		objc_wedit:=AES_pb.intout^[0]
+	end;
+
+
+function objc_xedit(ob_edtree: PTree; ob_edobject,ob_edchar: integer; var ob_edidx: integer; ob_edkind: integer; pr: PGRECT): integer;
+
+	begin
+		with AES_pb do
+			begin
+				control^[0]:=46;
+				control^[1]:=4;
+				control^[2]:=2;
+				control^[3]:=2;
+				control^[4]:=0;
+				addrin^[0]:=ob_edtree;
+				addrin^[1]:=pr;
+				intin^[0]:=ob_edobject;
+				intin^[1]:=ob_edchar;
+				intin^[2]:=ob_edidx;
+				intin^[3]:=ob_edkind
+			end;
+		_crystal(@AES_pb);
+		ob_edidx:=AES_pb.intout^[1];
+		objc_xedit:=AES_pb.intout^[0]
+	end;
+
+
 function HeapFunc(size: longint): integer;
 
   begin
   	if Application<>nil then Application^.Err:=em_OutOfMemory;
-    HeapFunc:=1
+    HeapFunc:=heaperrcode;
+    dec(heaperrcode);
+    if heaperrcode<1 then heaperrcode:=2
   end;
 
 
@@ -14967,16 +18441,24 @@ procedure GOExit;
 
 
 begin
+	ExitCode:=0;
 	Application:=nil;
 	appdone:=false;
 	agi.ApplSearch:=false;
 	profile:=nil;
 	upath:=nil;
+	paf:=nil;
+	has_agi:=false;
 	randomize;
+	heaperrcode:=2;
 	OldExit:=ExitProc;
 	ExitProc:=@GOExit;
 	HeapError:=@HeapFunc;
+	allocmode:=GLOBAL;
+	if AppFlag then allocmode:=allocmode or 3;
 	slmouse:=IDC_SLICE1;
+	fillchar(xselwind,sizeof(xselwind),0);
+	freedom:=id_No;
 	mhstack:=0;
 	mfstack:=0
 end.

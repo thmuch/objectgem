@@ -1,29 +1,30 @@
-{**************************************
- *  O b j e c t G E M   Version 1.20  *
- *  Copyright 1992-94 by Thomas Much  *
- **************************************
- *           Build-Programm           *
- **************************************
- *    Softdesign Computer Software    *
- *    Thomas Much, Gerwigstraûe 46,   *
- *  76131 Karlsruhe, (0721) 62 28 41  *
- *         Thomas Much @ KA2          *
- *  UK48@ibm3090.rz.uni-karlsruhe.de  *
- **************************************
- *    erstellt am:        03.03.1994  *
- *    letztes Update am:  23.05.1994  *
- **************************************}
+{****************************************
+ *   O b j e c t G E M   Version 1.50   *
+ *   Copyright 1992-98 by Thomas Much   *
+ ****************************************
+ *            Build-Programm            *
+ ****************************************
+ *     Thomas Much, Gerwigstraûe 46,    *
+ * 76131 Karlsruhe, Fax (0721) 62 28 21 *
+ *          Thomas Much @ KA2           *
+ *  Thomas.Much@stud.uni-karlsruhe.de   *
+ *  www.uni-karlsruhe.de/~Thomas.Much   *
+ ****************************************
+ *      erstellt am:        03.03.1994  *
+ *      letztes Update am:  03.01.1998  *
+ ****************************************}
 
 {
   WICHTIGE ANMERKUNGEN ZUM QUELLTEXT:
 
-  ObjectGEM wird mit dem _vollstÑndigen_ Quelltext ausgeliefert, d.h.
-  jeder kann sich die Unit selbst compilieren, womit die extrem lÑstigen
-  KompatibilitÑtsprobleme mit den PP-Releases beseitigt sind.
-  ObjectGEM ist und bleibt aber trotzdem SHAREWARE, d.h. wer die Biblio-
-  thek regelmÑûig benutzt, muû sich REGISTRIEREN lassen. DafÅr gibt es
-  die neueste Version und - gegen einen geringen Aufpreis - auch ein
-  gedrucktes Handbuch.
+	ObjectGEM ist Freeware, d.h. jeder darf die Units verwenden, ohne
+	fÅr die damit entwickelten Programme Lizenzen o.Ñ. zahlen zu mÅssen,
+	so lange alle Dateien _zusammen_ und _unverÑndert_ (!) weitergegeben
+	werden.
+	
+	Ich freue mich natÅrlich trotzdem Åber kleine Aufmerksamkeiten wie
+	Belegexemplare, originelle T-Shirts (L oder XL) sowie grÅnen Tee
+	aus Japan :-)
 
   WICHTIG: Wer den Quelltext verÑndert und dann Probleme beim Compilieren,
   AusfÅhren o.Ñ. hat, kann nicht damit rechnen, daû ich den Fehler suche;
@@ -53,11 +54,7 @@
 }
 
 
-{$IFDEF DEBUG}
-	{$B+,D+,G-,I-,L+,N-,P-,Q+,R+,S+,T-,V-,X+,Z-}
-{$ELSE}
-	{$B+,D-,G-,I-,L-,N-,P-,Q-,R-,S-,T-,V-,X+,Z-}
-{$ENDIF}
+{$B+,D-,G-,I-,L-,N-,P-,Q-,R-,S-,T-,V-,X+,Z-}
 
 program Build;
 
@@ -68,7 +65,6 @@ program Build;
 				OValidat,
 				ODialogs,
 				OStdWnds,
-				OStdDlgs,
 				ODB;
 
 begin
