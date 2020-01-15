@@ -14,8 +14,149 @@ Bekannte Bugs:
   nicht korrekt erkannt
 - in kleinen Farbauflîsungen werden einige Dialogelemente immer
   noch nicht korrekt gezeichnet
-- VDI-Font kann die Darstellung der Resourcen durcheinanderbringen
 
+- TScrollBar: Paint, Hide, State etc. -> alle Objekte beeinflussen
+
+
+Version 1.50 (28.01.1997, comp. mit PP vom 31.07.95)
+*** Online-Hilfe:
+- Support in Purepascal @ ASH
+- Schnittstellenobjekte, kontextsensitive Buttons
+- Popup-MenÅs: RCS-Aufbau, Maus-Steuerung, TestKey
+- Fenster-MenÅleisten + Steuerung
+- MenÅ- + Clipboard-Protokoll
+- Install korrekt und vollstÑndig beschreiben
+- Kapitel Grafikausgabe
+- TPopup: links, rechts
+- MAXTOOLBARS, TToolbarDescr
+- OLGA-Konstanten, OLGA-Protokoll
+- PAGE_xxxx-Konstanten
+- GOP_VERSION = $3ff, GOCookie
+- SCF_SYSTEM, FILE_SELECTED, FONT_xxx, PC_HELP-Protokoll-Konst.
+- MEA_-Konstanten
+- WinChangeFont, ExtFeatures -> XFontAck
+- Hintergrundfenster: Toppen durch Einfachklick links
+- Iconification mit <Ctrl>+<Alt>+<Space>, ICFS-Snapping
+- MemoryProtection auch unter MagiC!
+- es_SubMenu
+- MiNT-Domain (TApp.Init), Quoting
+- as_LoadFonts entfernt!!! Fonts werden fÅr TApp-vdiHandle immer geladen
+- Memory-Profiles schneller
+- ICFS-Iconify flackert nicht mehr
+- Tastaturiconify mit Ctrl+Alt+Space auch unter MTOS/MagiC!
+- Workaround fÅr vr_trnfm (longint)
+- Cut-Copy-Paste auch in modalen Dialogen
+- Kosmetik fÅr MagiC!3
+- die Userdef-Routinen legen fast nichts mehr auf dem Supervisor-Stack ab
+- wegen Gemini 1.a erstmal kein AV_SENDKEY mehr
+- <F1> wird mit <Help> gleichgesetzt
+- DEBUG, COPRO
+- _SCP-Semaphor wird nicht mehr benutzt
+- GetTempFilename verbessert
+- Anpassung an Stewart
+- GroupBox-öberschriften sollten jetzt Åberall deckend sein
+- <Help> ruft nur noch TDialog.Help auf; BubbleHelp per F1 oder RM
+***
+// TStack, TStringStack
+- CorrectPath
+- TXBase, TScrollEdit
+- MagiCDate, TApplication.AESCanScrollEdit
+- CutRight, CutRightF, CutLeft, CutLeftF, ltob, btol, ltoo, otol
+- atof() verbessert
+- CAB-Protokoll
+- StartApp() wandelt vor appl_find() in Groûbuchstaben
+- TControl.IsHidden etc. korrigiert
+- hidden Shortcuts und Edits werden nicht mehr beachtet
+- MU_TIMER immer
+- INSTANZVERKETTUNG ENTFERNT!!! Auûerdem verschwunden: TApplication.FirstInstance,
+  GetCurrInstance, Attr.Instance, GOCookie
+- appl_xgetinfo
+- AV_STARTED
+- TScrollBar.TrackMode
+- TStringCollection.CaseSensitive
+- SysInfo stark erweitert, bessere Systemfonterkennung, SetSystemFont, SetSmallSystemFont
+- StrScanQuote, GetQuotedName, GetMemBuffer, GetRawPath
+- rudimentÑre Farbicon-UnterstÅtzung
+- KeyRepeatOff, KeyRepeatRestore
+- Alliconify optimiert, u.a. kein Absturz mehr unter MagiC!
+- Groupboxen auch ohne Titel
+- MagiCVersion, TApplication.MagiCActive
+- ws_ex_Center statt ws_ex_CenterOnce unter VSCR
+- RBox heiût nun VWork, wirkt auf Rubbox, TScroller und Bitblt-Scrolling
+- TDialog.SetExtFocus, GetExtFocus
+- TControl.ExtFocusKey, ExtFocusPaint, wb_ExtFocus
+- TApplication.ReleaseMouseButton, GOP_RELEASEBUTTON, FileSelected
+- TApplication.ReadExtMessage (-> muû zum Lesen Åberschrieben werden!!!), StartApp
+- Funktion XFileSelect (-> Freedom-Anpassung)
+- wenn cs_Rubbox gesetzt ist, werden Einfachklicks trotzdem erkannt
+- cs_FreeOnClose
+- Rubbox auch mit Nullhîhe und -breite
+- StrPTrimNum, StrPTrimNumF, StrPFill, StrPMid
+- statt Super() wird nun Supexec() verwendet
+- Fehler bei Uniconify ohne WINX beseitigt
+- TWindow.GetVWork, ForceVRedraw, FontChanged, DoRubbox, SetGadgetsSize
+- TScroller.RedrawParent
+- Objekte TSubMenu, TListBox
+- objc_sysvar jetzt ab AES 3.40, WF_BEVENT ab AES 3.31
+- TWindow.LoadMenu: Flag, ob erstes MenÅ getuned wird
+- TPopup.Shadow
+- TPopup kommt jetzt mit allen Objekttypen zurecht
+- TComboBox verwaltet jetzt beliebige Popups, dafÅr neue Methode SetValue
+- Reaktion von Popups auf Mausklicks nochmals verbessert
+- TTextWindow verwendet fÅr alle internen Berechnungen longint
+- TTextWindow.AddLineRaw
+- Redraw von Fenster-MenÅtiteln optimiert
+- neue AV-Protokoll-Statusbits und -Messages, GetXAccAttr aktualisieren
+- TApplication.GetBubbleDelay, SetBubbleDelay, Terminating, SetError, Bing
+- GetProfileIntRange, GetPrivateProfileIntRange, GetProfileBool, GetPrivateProfileBool,
+  WriteProfileBool, WritePrivateProfileBool
+- GlobalAlloc, GlobalFree
+- StrPPas
+- TWndClass.Style ist jetzt longint
+- TWindow.LoadToolbar kopiert den Objektbaum und setzt die Rahmenflags automatisch
+- es kînnen pro Fenster nur noch max. 5 Toolbars im Speicher gehalten werden;
+  automatisch angezeigt wird die erste angemeldete, auf die anderen kann mit
+  TWindow.SwitchToolbar gewechselt werden; FreeToolbar muûte dafÅr erweitert
+  werden
+- vor _jedem_ TToolbar.ObjAddr-Zugriff muû nun IsToolbarInstalled abgefragt werden
+- der Parameter Opposite bei TWindow.LoadToolbar entfÑllt, dafÅr gibt es nun
+  TWindow.SetToolbarPos
+- folgende TWindow-Methoden sind _nicht_ mehr virtuell: GetCurr, GetDC, ReleaseDC,
+  SetTitle, SetSubTitle, SetGadgets, SetCursor
+- TDialog.LoadDialog kopiert jetzt nicht nur den Objektbaum, sondern auch
+  die Inhalte (TEDINFO, te_ptext etc.)
+- TDialog.InsertChar, SelectDisabled, ObjcPaintRect
+- GOP_USERDEF
+- TIntegerArray, TLongintArray
+- TPopup.InitCollection, pStart, TPopup.Init erweitert, nullterminierte Pascal-Strings (!)
+- TPopup.pMax ist jetzt Methode, TPopup.ExitPop erweitert, AutoCheck, CheckMark
+- TPopup.FreePopTree, SetCollection, SetOffset, GetOffset, List
+- TComboBox.InitCollection, CreatePopup, ClearSelection, SetState, List, Init erweitert, CenterX
+- TComboBox.ChangeAlways, SetSelection erweitert
+- TSortedCollection.Sort
+- mm2dpi, ltoh, htol
+- as_CancelOnClose
+- appl_yield ist jetzt auch im interface-Teil eingetragen...
+- atof behandelt Punkt und Komma gleichwertig
+- kleiner Bug in RadioButton-Deselektionsroutine behoben
+- TComboBox und TCheckBox Åbertragen in Transfer jetzt integer statt word,
+  so daû kein RangeCheck Error mehr auftritt
+- VAStart: Cmd jetzt PChar
+- VA_START wird jetzt nicht mehr nur bei Accessories weitergeleitet, VAStart ruft
+  ACOpen aber trotzdem nur bei solchen auf
+- Kollektionen verwenden move()
+- LoadResource/InitResource: hwratio, Bitmaps werden evtl. halbiert
+- CompressPath
+- TApplication.OLGAManager, OLGAInit, OLGARenameLink, OLGALinkBroken, OLGAAck, as_OLGA
+- TApplication.OLGA, GetOLGAAttr, OLGAUpdated, TOLGAAttr, OLGAGetInfo, OLGAInfo, OLGAObjects
+- TApplication.PRNChanged, FNTChanged
+- TWindow.GetOLGAGroup, OpenWindow und CloseWindow angepaût, cs_OLGADocument
+- TWindow.OLGAUpdated, OLGARenameLink, OLGALinkBroken
+- folgende TWindow-Methoden sind nicht mehr virtuell: IsTop, SetToolbarPos,
+  FirstIcon, NextIcon, FirstWorkRect, NextWorkRect
+- folgende TDialog-Methoden sind nicht mehr virtuell: ObjcPaint, GetDefaultButton,
+  GetFocus, GetExtFocus
+- bîsen Bug beim TComboBox-Datentransfer gefixed (Edit wird nicht mehr doppelt Åbertragen)
 
 Version 1.20 (29.10.1994, comp. mit PP vom 04.05.94)
 - wie angekÅndigt wird von ObjectGEM-Programmen kein individueller
